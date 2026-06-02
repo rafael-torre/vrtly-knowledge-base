@@ -1,6 +1,7 @@
 ---
 
 ## title: "Pitch Deck Synthesis — Vrtly Q1 2025"
+
 last_updated: "2026-06-01"
 source: "raw-inputs/Vrtly Pitch Deck 2025 Q1.pdf"
 
@@ -199,7 +200,7 @@ Vrtly's claimed unique differentiators (only Vrtly has all five):
 - 50% increase in custom practice ad uploads (2024 vs. 2023)
 - 170% increase in Practice DAU (2024 vs. 2023)
 - 30,000 practice content uploads (all-time)
-- >95 CSAT score
+- > 95 CSAT score
 
 **Brand side:**
 
