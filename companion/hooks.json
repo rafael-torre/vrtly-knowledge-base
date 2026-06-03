@@ -1,0 +1,17 @@
+{
+  "hooks": [
+    {
+      "event": "sessionStart",
+      "description": "Scan project state and generate session summary",
+      "script": "${CURSOR_WORKSPACE_ROOT}/companion/hooks/scan-project-state.sh",
+      "args": ["${CURSOR_WORKSPACE_ROOT}"]
+    },
+    {
+      "event": "afterFileEdit",
+      "description": "Auto-update metadata and cascade changes to related docs",
+      "script": "${CURSOR_WORKSPACE_ROOT}/companion/hooks/update-metadata.sh",
+      "args": ["${CURSOR_FILE_PATH}", "${CURSOR_WORKSPACE_ROOT}"],
+      "filePattern": "**/layers/**/final/**/*.md"
+    }
+  ]
+}

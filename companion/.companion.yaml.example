@@ -1,0 +1,6 @@
+# Companion Configuration
+# Copy this to .companion.yaml (gitignored) and customize for your session.
+# Used by the db90-companion rule to tailor feedback and skill invocation.
+
+name: "Your Name"
+role: tech-lead  # pm | designer | tech-lead | developer | engagement-lead | other
