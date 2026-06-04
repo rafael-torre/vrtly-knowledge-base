@@ -26,9 +26,9 @@ The demo is not a courtesy walkthrough. It is the first real access we get to th
 
 **Failure simulation:**
 
-- Go into the dev menu and trigger a simulated failure — any kind: network drop, stalled playback, corrupt asset
-- Show what happens on the device side and what, if anything, appears in the Kibana dashboard at that moment
-- Ask explicitly: *does triggering a failure here produce any event in telemetry?*
+- Is there any way you can trigger a failure from here — network drop, stalled playback, anything?
+- Can you show us what it looks like on the device side, and in the Kibana logs? *(You are using Kibana, right?)*
+- And when you trigger that failure — does anything actually show up in telemetry?
 
 **Telemetry dashboard:**
 
