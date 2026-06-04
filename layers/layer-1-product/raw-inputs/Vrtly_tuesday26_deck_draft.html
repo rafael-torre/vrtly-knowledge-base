@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vrtly — Audit Framing v3</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #0E0E0E;
+      --text:   #F0F0F0;
+      --muted:  #888888;
+      --accent: #4A7CFF;
+      --border: #222222;
+      --font:   system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* ── Slide base ── */
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: clamp(36px, 5.5vw, 96px) clamp(52px, 8vw, 144px);
+    }
+    .slide.active { display: flex; }
+
+    /* Content-heavy slides: title + content stay together, footer pushed to bottom */
+    .slide--top {
+      justify-content: flex-start;
+      padding-top: clamp(44px, 6vh, 84px);
+      padding-bottom: clamp(44px, 6vh, 84px);
+    }
+
+    .slide--top .preconditions {
+      margin-top: auto;
+    }
+
+    .slide--top h2 {
+      margin-bottom: 40px;
+    }
+
+    /* ── Counter ── */
+    #counter {
+      position: fixed;
+      bottom: 28px;
+      right: 36px;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* ── Shared typography ── */
+    .label-muted {
+      font-size: clamp(11px, 0.9vw, 13px);
+      color: var(--muted);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+      font-weight: 400;
+      font-style: italic;
+      line-height: 1.6;
+    }
+
+    h2 {
+      font-size: clamp(22px, 2.7vw, 38px);
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      margin-bottom: 28px;
+      width: 100%;
+    }
+
+    /* ── SLIDE 1 — two-column body ── */
+    .s1-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(40px, 6vw, 100px);
+      width: 100%;
+      align-items: start;
+    }
+
+    .lead {
+      font-size: clamp(15px, 1.5vw, 20px);
+      line-height: 1.7;
+      color: var(--text);
+    }
+
+    .points {
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+      margin-bottom: 24px;
+    }
+
+    .point {
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      font-size: clamp(14px, 1.25vw, 17px);
+      line-height: 1.55;
+      color: var(--text);
+    }
+
+    .point::before {
+      content: '·';
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+      font-weight: 700;
+      font-size: 1.3em;
+    }
+
+    .footer-note {
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: clamp(11px, 0.95vw, 13px);
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .footer-note strong { color: #aaa; font-weight: 500; }
+
+    /* ── SLIDE 2 — two-column plan ── */
+    .weeks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(36px, 5vw, 80px);
+      width: 100%;
+      margin-bottom: 26px;
+    }
+
+    .week-block {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .week-label {
+      font-size: clamp(10px, 0.85vw, 12px);
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .week-items {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .week-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding-left: 14px;
+      border-left: 2px solid var(--accent);
+    }
+
+    .item-title {
+      font-size: clamp(12px, 1.1vw, 14px);
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    .item-body {
+      font-size: clamp(11px, 0.95vw, 13px);
+      color: #b0b0b0;
+      line-height: 1.5;
+    }
+
+    /* ── SLIDE 2 — preconditions footer ── */
+    .preconditions {
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .preconditions-intro {
+      font-size: clamp(11px, 0.9vw, 13px);
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 4px;
+    }
+
+    .preconditions-line {
+      font-size: clamp(11px, 0.9vw, 13px);
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .preconditions-line strong {
+      color: #aaa;
+      font-weight: 500;
+      font-style: normal;
+    }
+
+    /* ── SLIDE 3 — questions ── */
+    .questions {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+      max-width: 72ch;
+    }
+
+    .question {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .q-num {
+      font-size: clamp(11px, 0.95vw, 13px);
+      font-weight: 700;
+      color: var(--accent);
+      padding-top: 2px;
+    }
+
+    .q-text {
+      font-size: clamp(13px, 1.15vw, 15px);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    @media (max-width: 860px) {
+      .weeks   { grid-template-columns: 1fr; gap: 36px; }
+      .s1-grid { grid-template-columns: 1fr; gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="deck">
+
+  <!-- ── SLIDE 1 — What we understand + the real problem ── -->
+  <section class="slide active" data-index="0">
+    <h2>What we understand, and what the real problem is</h2>
+    <div class="s1-grid">
+
+      <p class="lead">
+        3,000+ screens. ~2,000 independent practices. 47 documented failure causes. Today's telemetry correctly classifies 4% of them.
+      </p>
+
+      <div>
+        <div class="points">
+          <div class="point">No distinction between failure types: crash, connectivity loss, and content failure all look the same</div>
+          <div class="point">No reliable root cause, and no proactive detection until the client calls</div>
+          <div class="point">Same problems keep recurring. VT-5083 is still mid-flight across three of your four backend services</div>
+        </div>
+        <div class="footer-note">
+          <strong>Reported symptoms:</strong> blank screens, app crashes, recurring regressions.<br>
+          <strong>Hypotheses to validate:</strong> fragmented observability across 6 device runtimes, no canary deploys, no rollback path when a bad merge hits the html5core branch.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SLIDE 2 — Audit approach ── -->
+  <section class="slide slide--top" data-index="1">
+    <p class="label-muted">Audit approach</p>
+    <h2>How we would approach the first weeks</h2>
+    <div class="weeks">
+
+      <div class="week-block">
+        <div class="week-label">Weeks 1–2: build context and assess</div>
+        <div class="week-items">
+          <div class="week-item">
+            <div class="item-title">Ecosystem and architecture</div>
+            <div class="item-body">Understand the full platform: 6 runtimes, 4 backend services, content delivery flow, and how failures surface operationally.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">Active fleet: three workstreams</div>
+            <div class="item-body">We scope to the ~50% of the fleet that stays. Legacy hardware being phased out would be out of scope. The plan defines three parallel workstreams: html5core, Roku, and Android. Each needs a clear owner and the right access.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">Active firefight (VT-5083)</div>
+            <div class="item-body">Running across three backend services right now. We'd assess whether it needs to settle before Phase 1 can start cleanly.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">80% telemetry in one month: evaluation</div>
+            <div class="item-body">Map what specifically needs to be built to get there, and whether that is realistic given where things stand today. Scoped to the 50% of the fleet that stays after the legacy phase-out.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">Release process and how testing works today</div>
+            <div class="item-body">Understand the current release process and QA practice. No canary deploys, no rollback path today. Assess the risks before assuming what can be improved.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">QA scope definition</div>
+            <div class="item-body">We do not yet know what is viable. Emulators, canary on real devices, or something else. Define what QA can realistically do to validate the 80% telemetry phase.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="week-block">
+        <div class="week-label">Week 3: find the gaps and deliver our read</div>
+        <div class="week-items">
+          <div class="week-item">
+            <div class="item-title">Gaps in the plan</div>
+            <div class="item-body">Identify where the plan is under-specified or does not have enough behind it to execute.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">Phase 1 to Phase 2 sequencing</div>
+            <div class="item-body">Assess whether the order holds, or whether something needs to happen in parallel or in a different order.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">First recommendations</div>
+            <div class="item-body">Identify the most effective starting point across telemetry, release process, and QA. What to address first and why.</div>
+          </div>
+          <div class="week-item">
+            <div class="item-title">Our assessment</div>
+            <div class="item-body">Deliver a clear read: what is solid, what is at risk, and where to start.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="preconditions">
+      <p class="preconditions-intro">This runs from kickoff.</p>
+      <p class="preconditions-line"><strong>Preconditions to start:</strong> Full access to active repos and environments, and a product demo.</p>
+      <p class="preconditions-line"><strong>Starting point:</strong> A first Q&amp;A session with your team.</p>
+    </div>
+  </section>
+
+  <!-- ── SLIDE 3 — Questions ── -->
+  <section class="slide slide--top" data-index="2">
+    <p class="label-muted">Questions for this conversation</p>
+    <h2>What we want to understand first</h2>
+    <div class="questions">
+      <div class="question">
+        <div class="q-num">01</div>
+        <div class="q-text">Has there been an incident where you identified the complete root cause? How long did that take?</div>
+      </div>
+      <div class="question">
+        <div class="q-num">02</div>
+        <div class="q-text">When something breaks after a release, where does the problem typically come from?</div>
+      </div>
+      <div class="question">
+        <div class="q-num">03</div>
+        <div class="q-text">Can you walk us through one or two recent incidents you'd consider representative?</div>
+      </div>
+      <div class="question">
+        <div class="q-num">04</div>
+        <div class="q-text">Are Roku and Android part of the active fleet going forward, or are they included in the legacy hardware being phased out?</div>
+      </div>
+      <div class="question">
+        <div class="q-num">05</div>
+        <div class="q-text">When a screen goes down today, how does the team find out and what happens next?</div>
+      </div>
+      <div class="question">
+        <div class="q-num">06</div>
+        <div class="q-text">Is there any pre-production environment where releases are validated before they go to the full fleet?</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div id="counter"></div>
+
+<script>
+  (function () {
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const counter = document.getElementById('counter');
+    const total = slides.length;
+    let current = 0;
+
+    function show(index) {
+      slides[current].classList.remove('active');
+      current = Math.max(0, Math.min(index, total - 1));
+      slides[current].classList.add('active');
+      counter.textContent = (current + 1) + ' / ' + total;
+    }
+
+    function next() { show(current + 1); }
+    function prev() { show(current - 1); }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        e.preventDefault();
+        next();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || (e.key === ' ' && e.shiftKey)) {
+        e.preventDefault();
+        prev();
+      }
+    });
+
+    document.getElementById('deck').addEventListener('click', function (e) {
+      if (e.clientX > window.innerWidth / 2) {
+        next();
+      } else {
+        prev();
+      }
+    });
+
+    show(0);
+  })();
+</script>
+
+</body>
+</html>
