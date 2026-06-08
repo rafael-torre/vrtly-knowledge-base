@@ -1,0 +1,28 @@
+module,skill,display-name,menu-code,description,action,args,phase,preceded-by,followed-by,required,output-location,outputs
+DB90,skill-brainstorm,Brainstorm,BR,Expert guided facilitation through brainstorming techniques.,,,layer-0-business,,,false,layers/layer-0-business/intermediate,brainstorming session
+DB90,skill-research-market,Market Research,MR,Market analysis competitive landscape customer needs and trends.,,,layer-0-business,,,false,layers/layer-0-business/intermediate,research documents
+DB90,skill-research-domain,Domain Research,DR,Industry domain deep dive subject matter expertise and terminology.,,,layer-0-business,,,false,layers/layer-0-business/intermediate,research documents
+DB90,skill-research-technical,Technical Research,TR,Technical feasibility architecture options and implementation approaches.,,,layer-3-architecture,,,false,layers/layer-3-architecture/intermediate,research documents
+DB90,skill-product-brief,Create Brief,CB,Expert guided experience to nail down your product idea in a brief.,,,layer-1-product,,,false,layers/layer-1-product/intermediate,product brief
+DB90,skill-prfaq,PRFAQ Challenge,WB,Working Backwards guided experience to forge and stress-test your product concept.,,,layer-1-product,,,false,layers/layer-1-product/intermediate,prfaq document
+DB90,skill-feature-spec,Feature Spec,FS,Create update or validate a feature spec (product or technical PRD).,,,layer-1-product,skill-product-brief,,true,layers/layer-1-product/intermediate/features,feature spec
+DB90,skill-ux-spec,UX Spec,UX,Guidance through realizing the plan for your UX.,,,layer-2-design,skill-feature-spec,,false,layers/layer-2-design/intermediate/features,ux design
+DB90,skill-create-architecture,Create Architecture,CA,Guided workflow to document technical decisions.,,,layer-3-architecture,,,true,layers/layer-3-architecture/intermediate,architecture
+DB90,skill-readiness-check,Readiness Check,IR,Ensure product spec UX Architecture are aligned before implementation.,,,layer-3-architecture,skill-create-architecture,,true,layers/layer-3-architecture/intermediate,readiness report
+DB90,skill-generate-tickets,Generate Tickets,GT,Generate tickets from Layer 3 technical spec and create them on the configured board.,,,layer-4-implementation,skill-readiness-check,,true,layers/layer-4-implementation/intermediate,ticket references
+DB90,skill-promote-to-final,Promote to Final,PF,Validate and promote an intermediate document to final/ with correct frontmatter.,,,all,,,false,final/,promoted document
+DB90,skill-correct-course,Correct Course,CC,Analyze misalignment and propose corrective steps.,,,all,,,false,layers/,correction plan
+DB90,skill-elicitation,Elicitation,EL,Push the LLM to reconsider refine and improve its recent output.,,,all,,,false,,refined output
+DB90,skill-review-prose,Review Prose,RP,Clinical copy-editor that reviews text for communication issues.,,,all,,,false,,prose findings
+DB90,skill-review-structure,Review Structure,RS,Structural editor that proposes cuts reorganization and simplification.,,,all,,,false,,structure findings
+DB90,skill-review-adversarial,Adversarial Review,AR,Perform a cynical review and produce a findings report.,,,all,,,false,,adversarial findings
+DB90,skill-review-edge-cases,Edge Case Review,EC,Walk every branching path and boundary condition report unhandled edge cases.,,,all,,,false,,edge case findings
+DB90,skill-shard-doc,Shard Doc,SD,Splits large markdown documents into smaller organized files.,,,all,,,false,,sharded files
+DB90,skill-spec,Spec,SP,Distill any intent input into the SPEC kernel and companions.,,,all,,,false,,spec document
+DB90,skill-index-docs,Index Docs,ID,Generates or updates an index.md to reference all docs in a folder.,,,all,,,false,,index.md
+DB90,skill-investigate,Investigate,IN,Forensic case investigation calibrated to the input.,,,all,,,false,,investigation report
+DB90,skill-document-project,Document Project,DP,Document brownfield projects for AI context.,,,all,,,false,,project docs
+DB90,skill-generate-context,Generate Context,GC,Generate project context document for AI consumption.,,,all,,,false,,project-context.md
+DB90,skill-navigator,Navigator,NAV,Analyze current state and recommend next skill to use in the DB90 flow.,,,all,,,false,,navigation recommendation
+DB90,skill-roundtable,Roundtable,RT,Orchestrate group discussions between DB90 agent personas.,,,all,,,false,,discussion transcript
+DB90,skill-customize,Customize,CZ,Author and update customization overrides for installed DB90 skills.,,,all,,,false,,customize.toml

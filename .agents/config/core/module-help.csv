@@ -1,0 +1,13 @@
+module,skill,display-name,menu-code,description,action,args,phase,preceded-by,followed-by,required,output-location,outputs
+Core,_meta,,,,,,,,,false,,
+Core,skill-brainstorm,Brainstorming,BSP,Use early in ideation or when stuck generating ideas.,,,anytime,,,false,{output_folder}/brainstorming,brainstorming session
+Core,skill-roundtable,Roundtable,RT,Orchestrate multi-agent discussions when you need multiple perspectives or want agents to collaborate.,,,anytime,,,false,,
+Core,skill-navigator,Navigator,NAV,Get orientation on the project state and recommended next skill.,,,anytime,,,false,,
+Core,skill-index-docs,Index Docs,ID,Use when LLM needs to understand available docs without loading everything.,,,anytime,,,false,,
+Core,skill-shard-doc,Shard Document,SD,Use when doc becomes too large (>500 lines) to manage effectively.,,[path],anytime,,,false,,
+Core,skill-review-prose,Editorial Review - Prose,EP,Use after drafting to polish written content.,,[path],anytime,,,false,report located with target document,three-column markdown table with suggested fixes
+Core,skill-review-structure,Editorial Review - Structure,ES,Use when doc produced from multiple subprocesses or needs structural improvement.,,[path],anytime,,,false,report located with target document,
+Core,skill-review-adversarial,Adversarial Review,AR,"Use for quality assurance or before finalizing deliverables. Also useful for document reviews.",,[path],anytime,,,false,,
+Core,skill-review-edge-cases,Edge Case Hunter Review,ECH,Use alongside adversarial review for orthogonal coverage — method-driven not attitude-driven.,,[path],anytime,,,false,,
+Core,skill-spec,Spec,SP,"Use to distill any intent input (brief, transcript, brain dump, design folder, mixed multi-source) into a succinct SPEC.md contract that downstream work derives from. Locks the WHAT before the HOW.",,[path],anytime,,,false,{output_folder}/specs/spec-{slug},SPEC.md + companion files
+Core,skill-customize,Customize,CZ,"Use when you want to change how an agent or skill behaves — add persistent facts, swap templates, insert activation hooks, or customize menus. Writes the override to .agents/config/custom/.",,,anytime,,,false,{project-root}/.agents/config/custom,TOML override files

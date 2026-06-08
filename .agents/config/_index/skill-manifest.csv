@@ -1,0 +1,34 @@
+canonicalId,name,description,module,path
+skill-elicitation,skill-elicitation,Push the LLM to reconsider, refine, and improve its recent output.,core,.agents/skills/skill-elicitation/SKILL.md
+skill-brainstorm,skill-brainstorm,Facilitate interactive brainstorming sessions using diverse creative techniques and ideation methods.,core,.agents/skills/skill-brainstorm/SKILL.md
+skill-customize,skill-customize,Authors and updates customization overrides for installed DB90 skills.,core,.agents/skills/skill-customize/SKILL.md
+skill-review-prose,skill-review-prose,Clinical copy-editor that reviews text for communication issues.,core,.agents/skills/skill-review-prose/SKILL.md
+skill-review-structure,skill-review-structure,Structural editor that proposes cuts, reorganization, and simplification while preserving comprehension.,core,.agents/skills/skill-review-structure/SKILL.md
+skill-navigator,skill-navigator,Analyzes current state and recommends the next skill(s) to use in the DB90 flow.,core,.agents/skills/skill-navigator/SKILL.md
+skill-index-docs,skill-index-docs,Generates or updates an index.md to reference all docs in the folder.,core,.agents/skills/skill-index-docs/SKILL.md
+skill-review-adversarial,skill-review-adversarial,Perform a Cynical Review and produce a findings report.,core,.agents/skills/skill-review-adversarial/SKILL.md
+skill-review-edge-cases,skill-review-edge-cases,Walk every branching path and boundary condition in content, report only unhandled edge cases.,core,.agents/skills/skill-review-edge-cases/SKILL.md
+skill-shard-doc,skill-shard-doc,Splits large markdown documents into smaller, organized files based on level 2 sections.,core,.agents/skills/skill-shard-doc/SKILL.md
+skill-spec,skill-spec,Distill any intent input into the SPEC kernel + companions.,core,.agents/skills/skill-spec/SKILL.md
+skill-roundtable,skill-roundtable,Orchestrates group discussions between installed DB90 agent personas.,core,.agents/skills/skill-roundtable/SKILL.md
+agent-analyst,agent-analyst,Strategic business analyst and requirements expert (Mary). Use when the user asks to talk to Mary or requests the business analyst.,db90,.agents/skills/agent-analyst/SKILL.md
+agent-writer,agent-writer,Technical documentation specialist and knowledge curator (Paige). Use when the user asks to talk to Paige or requests the tech writer.,db90,.agents/skills/agent-writer/SKILL.md
+agent-pm,agent-pm,Product manager for feature spec creation and requirements discovery (John). Use when the user asks to talk to John or requests the product manager.,db90,.agents/skills/agent-pm/SKILL.md
+agent-designer,agent-designer,UX designer and UI specialist (Sally). Use when the user asks to talk to Sally or requests the UX designer.,db90,.agents/skills/agent-designer/SKILL.md
+agent-architect,agent-architect,System architect and technical design leader (Winston). Use when the user asks to talk to Winston or requests the architect.,db90,.agents/skills/agent-architect/SKILL.md
+agent-developer,agent-developer,Senior software engineer for Layer 3 technical specs and Layer 4 implementation docs (Amelia). Use when the user asks to talk to Amelia or requests the developer.,db90,.agents/skills/agent-developer/SKILL.md
+skill-research-market,skill-research-market,Conduct market research on competition and customers.,db90,.agents/skills/skill-research-market/SKILL.md
+skill-research-domain,skill-research-domain,Conduct domain and industry research.,db90,.agents/skills/skill-research-domain/SKILL.md
+skill-research-technical,skill-research-technical,Conduct technical research on technologies and architecture.,db90,.agents/skills/skill-research-technical/SKILL.md
+skill-product-brief,skill-product-brief,Create, update, or validate a product brief.,db90,.agents/skills/skill-product-brief/SKILL.md
+skill-feature-spec,skill-feature-spec,Create, update, or validate a feature spec (product or technical PRD).,db90,.agents/skills/skill-feature-spec/SKILL.md
+skill-ux-spec,skill-ux-spec,Plan UX patterns and design specifications.,db90,.agents/skills/skill-ux-spec/SKILL.md
+skill-create-architecture,skill-create-architecture,Guided workflow to document technical decisions.,db90,.agents/skills/skill-create-architecture/SKILL.md
+skill-readiness-check,skill-readiness-check,Validate product spec, UX, Architecture are complete and aligned.,db90,.agents/skills/skill-readiness-check/SKILL.md
+skill-correct-course,skill-correct-course,Analyze misalignment between layers and propose corrective steps.,db90,.agents/skills/skill-correct-course/SKILL.md
+skill-investigate,skill-investigate,Forensic case investigation calibrated to the input.,db90,.agents/skills/skill-investigate/SKILL.md
+skill-prfaq,skill-prfaq,Working Backwards PRFAQ challenge to forge product concepts.,db90,.agents/skills/skill-prfaq/SKILL.md
+skill-document-project,skill-document-project,Document brownfield projects for AI context.,db90,.agents/skills/skill-document-project/SKILL.md
+skill-generate-context,skill-generate-context,Generate project context document for AI consumption.,db90,.agents/skills/skill-generate-context/SKILL.md
+skill-promote-to-final,skill-promote-to-final,Validate and promote an intermediate document to the corresponding final/ path with correct frontmatter and metadata cascade.,db90,.agents/skills/skill-promote-to-final/SKILL.md
+skill-generate-tickets,skill-generate-tickets,Generate tickets from a Layer 3 feature technical spec and create them on the configured board.,db90,.agents/skills/skill-generate-tickets/SKILL.md

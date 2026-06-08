@@ -1,0 +1,13 @@
+# DB90 Module Configuration
+
+user_skill_level: intermediate
+planning_artifacts: "{project-root}/layers"
+implementation_artifacts: "{project-root}/layers/layer-4-implementation/intermediate"
+project_knowledge: "{project-root}/layers"
+
+# Core Configuration Values
+user_name: "Rafael "
+project_name: vrtly-knowledge-base
+communication_language: English
+document_output_language: English
+output_folder: "{project-root}/.agents/output"

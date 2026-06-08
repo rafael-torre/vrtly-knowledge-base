@@ -1,0 +1,22 @@
+module,skill,display-name,menu-code,description,action,args,phase,preceded-by,followed-by,required,output-location,outputs
+DB90,_meta,,,,,,,,,false,,
+DB90,skill-document-project,Document Project,DP,Analyze an existing project to produce useful documentation.,,,anytime,,,false,project-knowledge,*
+DB90,skill-generate-context,Generate Project Context,GPC,Scan existing codebase to generate a lean LLM-optimized project-context.md. Essential for brownfield projects.,,,anytime,,,false,output_folder,project context
+DB90,skill-correct-course,Correct Course,CC,Navigate significant changes. Analyzes cross-layer misalignment and proposes corrective steps.,,,anytime,,,false,planning_artifacts,change proposal
+DB90,agent-writer,Write Document,WD,"Describe in detail what you want, and the agent will follow documentation best practices. Multi-turn conversation with subprocess for research/review.",write,,anytime,,,false,project-knowledge,document
+DB90,agent-writer,Update Standards,US,Update agent memory documentation-standards.md with your specific preferences if you discover missing document conventions.,update-standards,,anytime,,,false,.agents/config/custom/tech-writer-sidecar,standards
+DB90,agent-writer,Mermaid Generate,MG,Create a Mermaid diagram based on user description. Will suggest diagram types if not specified.,mermaid,,anytime,,,false,planning_artifacts,mermaid diagram
+DB90,agent-writer,Validate Document,VD,Review the specified document against documentation standards and best practices. Returns specific actionable improvement suggestions organized by priority.,validate,[path],anytime,,,false,planning_artifacts,validation report
+DB90,agent-writer,Explain Concept,EC,Create clear technical explanations with examples and diagrams for complex concepts.,explain,[topic],anytime,,,false,project_knowledge,explanation
+DB90,skill-brainstorm,Brainstorm Project,BP,Expert guided facilitation through a single or multiple techniques.,,,1-analysis,,,false,planning_artifacts,brainstorming session
+DB90,skill-research-market,Market Research,MR,Market analysis competitive landscape customer needs and trends.,,,1-analysis,,,false,planning_artifacts|project-knowledge,research documents
+DB90,skill-research-domain,Domain Research,DR,Industry domain deep dive subject matter expertise and terminology.,,,1-analysis,,,false,planning_artifacts|project_knowledge,research documents
+DB90,skill-research-technical,Technical Research,TR,Technical feasibility architecture options and implementation approaches.,,,1-analysis,,,false,planning_artifacts|project_knowledge,research documents
+DB90,skill-product-brief,Create Brief,CB,An expert guided experience to nail down your product idea in a brief. A gentler approach than PRFAQ when you are already sure of your concept.,,-A,1-analysis,,,false,planning_artifacts,product brief
+DB90,skill-prfaq,PRFAQ Challenge,WB,Working Backwards guided experience to forge and stress-test your product concept through the PRFAQ gauntlet to determine feasibility and alignment with user needs.,,-H,1-analysis,,,false,planning_artifacts,prfaq document
+DB90,skill-feature-spec,Feature Spec,FS,"Facilitated feature spec workflow — create a new spec via coached discovery, update an existing one against a change signal, or validate a finished spec against a checklist.",,,2-planning,skill-product-brief,,true,planning_artifacts,feature spec
+DB90,skill-ux-spec,Create UX Spec,CU,"Guidance through realizing the plan for your UX, strongly recommended if a UI is a primary piece of the proposed project.",,,2-planning,skill-feature-spec,,false,planning_artifacts,ux design
+DB90,skill-create-architecture,Create Architecture,CA,Guided workflow to document technical decisions and system boundaries.,,,3-solutioning,,,true,planning_artifacts,architecture
+DB90,skill-generate-tickets,Generate Tickets,GT,Generate implementation tickets from a Layer 3 technical spec.,,,3-solutioning,skill-create-architecture,,true,planning_artifacts,tickets
+DB90,skill-readiness-check,Check Implementation Readiness,IR,Ensure feature spec UX architecture and tickets are aligned before implementation begins.,,,3-solutioning,skill-generate-tickets,,true,planning_artifacts,readiness report
+DB90,skill-investigate,Investigate,IN,Forensic case investigation calibrated to the input. Evidence-graded analysis with hypothesis tracking. Produces a structured case file.,,anytime,,,false,implementation_artifacts,investigation report

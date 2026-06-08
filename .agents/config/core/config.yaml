@@ -1,0 +1,7 @@
+# Core Configuration
+
+user_name: "Rafael "
+project_name: vrtly-knowledge-base
+communication_language: English
+document_output_language: English
+output_folder: "{project-root}/.agents/output"
