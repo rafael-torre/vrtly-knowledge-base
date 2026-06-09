@@ -22,5 +22,5 @@ Document the system architecture for a project or feature. Covers structural dec
 3. Elicit system boundaries, key components, and technology constraints
 4. Document structural decisions and trade-offs
 5. Write ADRs for each significant decision
-6. Write architecture overview
+6. Write architecture overview — invoke **skill-mermaid-diagram** to produce the system diagram section
 7. Prompt to promote via skill-promote-to-final when ready

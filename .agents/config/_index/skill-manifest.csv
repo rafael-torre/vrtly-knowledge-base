@@ -32,3 +32,4 @@ skill-document-project,skill-document-project,Document brownfield projects for A
 skill-generate-context,skill-generate-context,Generate project context document for AI consumption.,db90,.agents/skills/skill-generate-context/SKILL.md
 skill-promote-to-final,skill-promote-to-final,Validate and promote an intermediate document to the corresponding final/ path with correct frontmatter and metadata cascade.,db90,.agents/skills/skill-promote-to-final/SKILL.md
 skill-generate-tickets,skill-generate-tickets,Generate tickets from a Layer 3 feature technical spec and create them on the configured board.,db90,.agents/skills/skill-generate-tickets/SKILL.md
+skill-mermaid-diagram,skill-mermaid-diagram,Create readable Mermaid architecture diagrams split into focused views based on system complexity.,db90,.agents/skills/skill-mermaid-diagram/SKILL.md

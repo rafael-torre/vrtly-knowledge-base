@@ -8,6 +8,7 @@ DB90,skill-prfaq,PRFAQ Challenge,WB,Working Backwards guided experience to forge
 DB90,skill-feature-spec,Feature Spec,FS,Create update or validate a feature spec (product or technical PRD).,,,layer-1-product,skill-product-brief,,true,layers/layer-1-product/intermediate/features,feature spec
 DB90,skill-ux-spec,UX Spec,UX,Guidance through realizing the plan for your UX.,,,layer-2-design,skill-feature-spec,,false,layers/layer-2-design/intermediate/features,ux design
 DB90,skill-create-architecture,Create Architecture,CA,Guided workflow to document technical decisions.,,,layer-3-architecture,,,true,layers/layer-3-architecture/intermediate,architecture
+DB90,skill-mermaid-diagram,Mermaid Diagram,MD,Create readable architecture diagrams split into focused views based on system complexity.,,,layer-3-architecture,,,false,layers/layer-3-architecture/intermediate,system overview diagram
 DB90,skill-readiness-check,Readiness Check,IR,Ensure product spec UX Architecture are aligned before implementation.,,,layer-3-architecture,skill-create-architecture,,true,layers/layer-3-architecture/intermediate,readiness report
 DB90,skill-generate-tickets,Generate Tickets,GT,Generate tickets from Layer 3 technical spec and create them on the configured board.,,,layer-4-implementation,skill-readiness-check,,true,layers/layer-4-implementation/intermediate,ticket references
 DB90,skill-promote-to-final,Promote to Final,PF,Validate and promote an intermediate document to final/ with correct frontmatter.,,,all,,,false,final/,promoted document
