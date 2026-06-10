@@ -1,6 +1,6 @@
 ---
 title: "System Overview Diagram — Vrtly Platform"
-last_updated: 2026-06-09
+last_updated: 2026-06-10
 ---
 
 # System Overview Diagram: Vrtly Platform
@@ -42,6 +42,7 @@ flowchart TD
     Backend -->|"Social content pull"| Meta["Meta Graph API"]
     GCP["GCP Pub/Sub / Firebase"] -->|"POST /webhook/gcp/pubsub"| Backend
     Backend -->|"Outbound SMS"| Twilio["Twilio"]
+    Backend -->|"Shipping · Geocoding · Email\nCRM webhooks · CRM sync"| OtherExt["Other Integrations\nShippo · Google Maps · SMTP\nIntercom · MailChimp · Salesforce ⚠️"]
 ```
 
 ---
@@ -69,9 +70,12 @@ flowchart TD
         ES[("Elasticsearch\nAnalytics indices · ad slots · impressions")]
         S3CF["S3 + CloudFront\nMedia storage · SPA bundles\nSigned delivery URLs"]
         EFS["AWS EFS\nShared media files between ECS instances"]
+        Transcribe["AWS Transcribe\nSpeech-to-text · subtitle generation"]
     end
 
     HTML5Preview["html5core\n(content preview)"]
+
+    ExtServices["Other Integrations\nShippo · Google Maps · SMTP\nIntercom · MailChimp · Salesforce ⚠️"]
 
     Home --> VPM
     Home --> VAM
@@ -79,12 +83,15 @@ flowchart TD
     VAM -->|"REST /cms/* · dual-token auth"| FMCore
     Onb -->|"REST /cms/*"| FMCore
     VPM -->|"iframe / postMessage\ncontent preview"| HTML5Preview
+    VAM -->|"iframe / postMessage\ncontent preview"| HTML5Preview
 
     FMCore --> MySQL
     FMCore --> Redis
     FMCore --> ES
     FMCore --> S3CF
     FMCore --> EFS
+    FMCore --> Transcribe
+    FMCore -->|"Shipping · Geocoding · Email\nCRM webhooks · CRM sync"| ExtServices
 ```
 
 ---
@@ -97,7 +104,7 @@ Device-side player, the player API, and the infrastructure it owns. Includes the
 flowchart TD
     subgraph Device["Device / Player App"]
         Cordova["cordova-player ⚠️\nFireTV native shell\nProvides device UUID + model"]
-        HTML5["html5core\nPlaylist playback · telemetry batching\nABR event reporting · Info Pack QR"]
+        HTML5["html5core · Vue 3 / TypeScript\nFireTV · webOS · Tizen · iOS · Browser\nPlaylist playback · telemetry batching\nABR event reporting · Info Pack QR"]
     end
 
     subgraph PAPI["fmcom-player-api · Spring Boot / ECS"]

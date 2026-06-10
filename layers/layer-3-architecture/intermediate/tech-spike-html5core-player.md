@@ -1,6 +1,6 @@
 ---
 title: "Tech Spike — HTML5 player app (FireTV/WebView)"
-last_updated: 2026-06-09
+last_updated: 2026-06-10
 ---
 
 # Tech Spike: HTML5 player app (FireTV/WebView)
@@ -96,7 +96,6 @@ A secondary operating mode called "Consultations" (Consults) transforms the play
 | **Tizen SDK** | `window.tizen` global | Tizen device detection; separate `TizenHostedDevice` for browser-hosted Tizen mode |
 | **iOS WKWebView bridge** | `window.webkit.messageHandlers` | iOS-specific device integration (`src/types/ios.d.ts`) |
 
-**Gap:** The repos directory does not contain the Vrtly backend API service(s) that handle the `player/*` and `cms/*` routes. All API contracts are inferred from the client-side call sites. The Cordova shell (`cordova-player` repository) is also referenced in the README but not present in this repo — the relationship between these two repos is a gap for the system map.
 
 ---
 

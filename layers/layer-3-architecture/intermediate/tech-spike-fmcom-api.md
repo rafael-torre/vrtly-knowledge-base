@@ -1,6 +1,6 @@
 ---
 title: "Tech Spike — Main platform backend (FriendMedia API)"
-last_updated: 2026-06-09
+last_updated: 2026-06-10
 ---
 
 # Tech Spike: Main platform backend (FriendMedia API)
@@ -82,9 +82,9 @@ It is not a pure API gateway — it owns a large share of the domain database, d
 
 | Integration | Mechanism | Direction | Notes |
 |---|---|---|---|
-| **RNF service** (`rnf`) | Spring Cloud Feign (`RnfFeignClient`) + JMS (`Destinations.RNF_MEDIA_PROCESSING`) | Outbound | Playlist resolution and media processing dispatch; URL configured via `service.discover.rnf`. **GAP: `rnf` repo not present in `repos/` directory** |
-| **State service** (`state`) | `fm-common` `StateClientModule` / `ScreenStateClient` / `InstanceStateClient` via Feign | Outbound | Screen state reads; URL via `service.discover.state`. **GAP: `state` repo not present in `repos/` directory** |
-| **YouTube Downloader service** | JMS outbound (`Destinations.YOUTUBE_UPDATE_URL_DESTINATION`, `YoutubeDownloadMessage`) + internal HTTP inbound (`/internal/youtube-downloads/**`) | Bidirectional | YD claims lock via API, heartbeats, then calls `/complete` or `/fail`; rescue sweeper re-dispatches stuck rows. **GAP: `youtube-downloader` repo not present in `repos/` directory** |
+| **RNF service** (`rnf`) | Spring Cloud Feign (`RnfFeignClient`) + JMS (`Destinations.RNF_MEDIA_PROCESSING`) | Outbound | Playlist resolution and media processing dispatch; URL configured via `service.discover.rnf`.
+| **State service** (`state`) | `fm-common` `StateClientModule` / `ScreenStateClient` / `InstanceStateClient` via Feign | Outbound | Screen state reads; URL via `service.discover.state`.
+| **YouTube Downloader service** | JMS outbound (`Destinations.YOUTUBE_UPDATE_URL_DESTINATION`, `YoutubeDownloadMessage`) + internal HTTP inbound (`/internal/youtube-downloads/**`) | Bidirectional | YD claims lock via API, heartbeats, then calls `/complete` or `/fail`; rescue sweeper re-dispatches stuck rows.
 | **Amazon MQ (ActiveMQ)** | Spring JMS (`ssl://...mq.us-west-2.amazonaws.com:61617`) | Bidirectional | 4 inbound JMS queues handled: `API_CONTENT_ADD`, `API_CONTENT_QUARANTINE`, `API_CONSULT_EMAIL_SEND`, `YOUTUBE_UPDATE_URL`; outbound: `RNF_MEDIA_PROCESSING`, `YOUTUBE_DOWNLOAD`, `API_CONTENT_ADD`, `API_CONSULT_EMAIL_SEND` |
 | **AWS S3** | AWS SDK v1 (`AmazonS3`) and v2 (`software.amazon.awssdk.s3`) | Outbound | Media upload, signed URL generation, CloudFront signed cookie |
 | **AWS CloudFront** | SDK v1 (`aws-java-sdk-cloudfront`) | Outbound | Signed URL/cookie generation via private key (`cloudfront-key-file`) |

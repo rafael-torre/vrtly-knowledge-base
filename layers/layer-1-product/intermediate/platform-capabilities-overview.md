@@ -1,6 +1,6 @@
 ---
 title: "Platform Capabilities Overview"
-last_updated: 2026-06-09
+last_updated: 2026-06-10
 ---
 
 # Platform Capabilities Overview
@@ -136,22 +136,15 @@ Platform Operators have access to diagnostic and operational tools not available
 
 ## Open Questions for the Client
 
-1. **What happens to content and screens when the playlist allocation engine is unavailable?** The service that determines what plays on each screen and in what order is a critical dependency for every screen in the network. If it goes down, it is unclear whether screens continue playing their last known playlist, show a blank screen, or fall back to a local default. The resilience model needs to be confirmed. *(Source: Roundtable, Winston Open Question 1)*
 
-2. **Is the boundary between provider and brand access enforced on the server, or only in the browser?** Routing a logged-in user to the correct portal is currently done client-side. Whether the server rejects requests from a brand attempting to use provider-only functions — and vice versa — is not confirmed. If enforcement is only in the browser, a technically capable user could access functions they should not. *(Source: Roundtable, resolved point 1 and John question)*
+1. **Is the boundary between provider and brand access enforced on the server, or only in the browser?** Routing a logged-in user to the correct portal is currently done client-side. Whether the server rejects requests from a brand attempting to use provider-only functions — and vice versa — is not confirmed. If enforcement is only in the browser, a technically capable user could access functions they should not.
 
-3. **Are subscription tier restrictions enforced server-side?** Feature entitlements — which capabilities a provider on the free vs. paid tier can access — are currently fetched once at login and stored in the browser. If a provider's tier changes, they see the old entitlements until they reload. More importantly, it is not confirmed whether the server blocks calls to premium features from a free-tier account. If not, tier gating exists only in the interface. *(Source: Roundtable, Winston architecture observation and John Open Question 3)*
+2. **Does the reporting surface give brands a unified view of ad impressions and consultation engagement?** Brands invest in both passive campaign placements and active consultation content distribution. Whether the platform connects those two data streams into a single ROI view per campaign is not confirmed. If it does not, brands have no way to measure the full value of their presence on the platform.
 
-4. **Does the reporting surface give brands a unified view of ad impressions and consultation engagement?** Brands invest in both passive campaign placements and active consultation content distribution. Whether the platform connects those two data streams into a single ROI view per campaign is not confirmed. If it does not, brands have no way to measure the full value of their presence on the platform. *(Source: Roundtable, John Open Question 2)*
+3. **How visible is content quality and quarantine status to providers and brands?** When a piece of content is automatically removed from rotation on a screen due to repeated playback failures, neither the provider nor the brand appears to receive a notification or see a status indicator in their portal. A sponsor whose content stopped playing has no diagnostic path to understand why their impressions dropped.
 
-5. **What patient data is collected through the info-pack QR flow, and what are the HIPAA obligations?** The patient-facing destination is entirely uncharted from an architecture standpoint. Patient phone numbers may be collected for SMS authentication. On a healthcare platform, any patient data collection triggers compliance obligations. The scope and design of the patient data model needs to be reviewed. *(Source: Roundtable, John Open Question 1)*
+4. **What is the expected recovery time when a screen restarts or loses power?** Devices re-register automatically on boot but display an activation screen during that process. The time from power-on to resumed playback depends on backend response times that are not currently measured or documented. For a waiting-room screen, that gap is patient-facing downtime.
 
-6. **Is hardware purchase required to activate screens, or can providers use their own devices?** The platform supports ordering and shipping physical devices and links subscription tiers to screen activation. Whether a practice can bring a compatible off-the-shelf device and subscribe without a hardware purchase is not answered by the architecture. This affects how onboarding, pricing, and support are structured. *(Source: Roundtable, John Open Question 4)*
+5. **What is the current state and strategic direction of the consultation feature?** Some consultation-related functions appear to be marked for removal or replacement, while the broader feature is clearly active and embedded deeply in the platform. Is consultation a core differentiator being actively invested in, or a capability that is being wound down or redesigned?
 
-7. **How visible is content quality and quarantine status to providers and brands?** When a piece of content is automatically removed from rotation on a screen due to repeated playback failures, neither the provider nor the brand appears to receive a notification or see a status indicator in their portal. A sponsor whose content stopped playing has no diagnostic path to understand why their impressions dropped. *(Source: Roundtable, resolved point 2)*
-
-8. **What is the expected recovery time when a screen restarts or loses power?** Devices re-register automatically on boot but display an activation screen during that process. The time from power-on to resumed playback depends on backend response times that are not currently measured or documented. For a waiting-room screen, that gap is patient-facing downtime. *(Source: Roundtable, Winston architecture observation)*
-
-9. **What is the current state and strategic direction of the consultation feature?** Some consultation-related functions appear to be marked for removal or replacement, while the broader feature is clearly active and embedded deeply in the platform. Is consultation a core differentiator being actively invested in, or a capability that is being wound down or redesigned? *(Source: Roundtable, John Open Question 5)*
-
-10. **What targeting controls do brands actually have when configuring a campaign?** The architecture confirms campaigns have impression and time-share goals, budgets, and date ranges. Whether brands can target by practice specialty, patient demographic, geography, or other criteria — and whether those constraints are enforced by the allocation engine — cannot be determined without analyzing the allocation service. *(Source: System Map, rnf ecosystem gap)*
+6. **What targeting controls do brands actually have when configuring a campaign?** The architecture confirms campaigns have impression and time-share goals, budgets, and date ranges. Whether brands can target by practice specialty, patient demographic, geography, or other criteria — and whether those constraints are enforced by the allocation engine — cannot be determined without analyzing the allocation service.

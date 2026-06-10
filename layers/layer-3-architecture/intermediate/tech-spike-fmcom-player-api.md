@@ -1,6 +1,6 @@
 ---
 title: "Tech Spike — Player-specific backend (Vrtly Player API)"
-last_updated: 2026-06-09
+last_updated: 2026-06-10
 ---
 
 # Tech Spike: Player-specific backend (Vrtly Player API)
@@ -31,7 +31,7 @@ At the core of its intelligence is a multi-layered ABR mitigation stack: a netwo
 | AWS SDK v2 S3 | 2.24.11 | S3 file operations |
 | AWS SDK v1 CloudFront | 1.12.671 | Signed CloudFront URL generation |
 | Bouncycastle | 1.46 | RSA/PEM key handling for CloudFront signing |
-| fm-common | 8.8.9 | Vrtly internal shared library — domain models, JMS destinations, Redis key constants, common services, state-client, lock-service, quarantine-service, telemetry-service (see gap note below) |
+| fm-common | 8.8.9 | Vrtly internal shared library — domain models, JMS destinations, Redis key constants, common services, state-client, lock-service, quarantine-service, telemetry-service |
 | MapStruct | 1.5.5.Final | Bean mapping (DTO ↔ entity) |
 | Lombok | (Boot-managed) | Boilerplate reduction |
 | springdoc-openapi | 2.2.0 | Swagger UI |
@@ -69,9 +69,9 @@ At the core of its intelligence is a multi-layered ABR mitigation stack: a netwo
 
 | Integration | Type | Details |
 |---|---|---|
-| **rnf (reach-n-freq) service** | HTTP (Feign) | `RnfFeignClient` calls `${SERVICE_DISCOVER_RNF}/playlist/current/{screenId}` — resolves the active playlist for a screen. In prod: `https://rnf.prod.vrtly.app`. **Not present in repos/ directory — gap.** |
-| **api service** | HTTP (config) | `${SERVICE_DISCOVER_API}` referenced for inter-service coordination. In prod: `https://api.prod.vrtly.app`. **Not present in repos/ directory — gap.** |
-| **state service** | Library client | `ScreenStateClient` from `fm-common` calls `${SERVICE_DISCOVER_STATE}`. In prod: `https://state.prod.vrtly.app`. **Not present in repos/ directory — gap.** |
+| **rnf (reach-n-freq) service** | HTTP (Feign) | `RnfFeignClient` calls `${SERVICE_DISCOVER_RNF}/playlist/current/{screenId}` — resolves the active playlist for a screen. In prod: `https://rnf.prod.vrtly.app`.
+| **api service** | HTTP (config) | `${SERVICE_DISCOVER_API}` referenced for inter-service coordination. In prod: `https://api.prod.vrtly.app`.
+| **state service** | Library client | `ScreenStateClient` from `fm-common` calls `${SERVICE_DISCOVER_STATE}`. In prod: `https://state.prod.vrtly.app`.
 | **AWS ActiveMQ (Amazon MQ)** | JMS (SSL) | Subscribes to 9 `PLAYER_*` topics (screen updated, content updated/pending, quality cap notify, org updated, history load, content transcoded batch). Default broker: `ssl://b-451110d0-...mq.us-west-2.amazonaws.com:61617`. Also publishes `API_CONTENT_QUARANTINE` on restore. |
 | **Redis (ElastiCache)** | Lettuce / Redis | Session cache, per-screen quality cap state (30 min TTL), per-(screen, content) escalation state (no TTL), WS session dedup, `lastFetchAt` mitigation anchor (7d TTL), global max quality cap key, quarantine rule ZSETs. Database index: `4` (dev), `2` (prod). |
 | **MySQL (RDS)** | HikariCP / JPA | Primary operational store: screens, organizations, content, playlists, brands, quarantine, consult tracks, info-pack, reports, users, locations. Schema managed by Liquibase. Pool size: 150 connections in prod. |
@@ -80,7 +80,7 @@ At the core of its intelligence is a multi-layered ABR mitigation stack: a netwo
 | **AWS CloudFront** | AWS SDK v1 | Signed URL generation for every content URL served to devices. Keys stored in `private_key.pem` / `prod_private_key.pem`. Domain: `d1cgzt8pcd208o.cloudfront.net` (prod). |
 | **XxlJob admin** | HTTP | Distributed job scheduling. Admin: `https://jobs.prod.vrtly.app/job-admin/`. Executor port `9997`. |
 | **AWS SSM Parameter Store** | ECS secrets injection | All sensitive env vars (DB credentials, Redis auth, Elasticsearch creds, MQ credentials, crypto keys) are injected at container start via SSM ARNs in the ECS task definition. |
-| **fm-common library** | Internal JAR | Pulled from AWS CodeArtifact (`vrtly-515289352310.d.codeartifact.us-west-2.amazonaws.com/maven/fm-common/`). Version 8.8.9. Contains domain models, JMS `Destinations` constants, `ScreenStateClient`, `ContentQuarantineService`, `TelemetryService`, `LockService`, `PlaylistCurrentService`, `AwsService`, `MessagingService`, and many shared repositories. **Source not in repos/ directory — gap.** |
+| **fm-common library** | Internal JAR | Pulled from AWS CodeArtifact (`vrtly-515289352310.d.codeartifact.us-west-2.amazonaws.com/maven/fm-common/`). Version 8.8.9. Contains domain models, JMS `Destinations` constants, `ScreenStateClient`, `ContentQuarantineService`, `TelemetryService`, `LockService`, `PlaylistCurrentService`, `AwsService`, `MessagingService`, and many shared repositories.
 
 ## Key Data Entities / Domain Models
 
@@ -147,20 +147,19 @@ Three Lua scripts (`save_custom_content_of_screen.lua`, `save_recently_playlist.
 
 1. **Session replication strategy**: Is horizontal scaling of player-api expected to be sticky (ALB session affinity) or stateless? The current in-memory `SessionHolder` design is not horizontally safe without session affinity. What is the actual ECS service scaling policy and whether sticky sessions are configured on the load balancer?
 
-2. **fm-common version governance**: Who owns `fm-common` releases? What is the process for coordinating breaking-change deployments across player-api, api, rnf, and state services simultaneously? Is there a shared changelog or compatibility matrix?
 
-3. **Escalation ladder rollout state**: `player.escalation.active` defaults to `false` in `application.yml` but is `true` in the prod task definition. Is the shadow-mode vs. active-mode distinction still in active use, or is it safe to remove the dual-flag complexity?
+2. **Escalation ladder rollout state**: `player.escalation.active` defaults to `false` in `application.yml` but is `true` in the prod task definition. Is the shadow-mode vs. active-mode distinction still in active use, or is it safe to remove the dual-flag complexity?
 
-4. **CloudFront streaming endpoint authorization**: Is the unauthenticated `/player/content/stream/` endpoint intended to be publicly accessible? Should CloudFront signed URLs be applied here, or is security handled via obscurity of the URL pattern?
+3. **CloudFront streaming endpoint authorization**: Is the unauthenticated `/player/content/stream/` endpoint intended to be publicly accessible? Should CloudFront signed URLs be applied here, or is security handled via obscurity of the URL pattern?
 
-5. **Private keys in repository**: `private_key.pem` and `prod_private_key.pem` are committed. Have these been rotated since being committed? What is the remediation plan for the git history exposure?
+4. **Private keys in repository**: `private_key.pem` and `prod_private_key.pem` are committed. Have these been rotated since being committed? What is the remediation plan for the git history exposure?
 
-6. **`fm-common` Redis key namespacing**: The key constants (`TelemetryRedisKeys`, `PLAYBACK_ESCALATION_PREFIX`, etc.) are defined in `fm-common`. Are these keys shared between multiple services on the same Redis instance (database index 4/2)? If so, a key collision between player-api and another service is possible.
+5. **`fm-common` Redis key namespacing**: The key constants (`TelemetryRedisKeys`, `PLAYBACK_ESCALATION_PREFIX`, etc.) are defined in `fm-common`. Are these keys shared between multiple services on the same Redis instance (database index 4/2)? If so, a key collision between player-api and another service is possible.
 
-7. **Legacy endpoint removal timeline**: `PlayerController.registerDevice()` and `getConfig()` are marked for removal. What version of the player app can still be hitting these endpoints? Is there telemetry to measure their remaining traffic before removal?
+6. **Legacy endpoint removal timeline**: `PlayerController.registerDevice()` and `getConfig()` are marked for removal. What version of the player app can still be hitting these endpoints? Is there telemetry to measure their remaining traffic before removal?
 
-8. **Consult feature scope**: `ConsultController` and `ConsultService` represent a "consult" feature (brand-filtered content experience with user tracking). Is this a separate product line from the normal display playlist? What percentage of deployed screens use it?
+7. **Consult feature scope**: `ConsultController` and `ConsultService` represent a "consult" feature (brand-filtered content experience with user tracking). Is this a separate product line from the normal display playlist? What percentage of deployed screens use it?
 
-9. **State service responsibility**: `ScreenStateClient` from `fm-common` is called for screen lookups in hot paths (session build, escalation notifications, mitigation emitter). What is the state service's SLA and how does player-api behave under state service degradation? Is there a fallback or circuit breaker?
+8. **State service responsibility**: `ScreenStateClient` from `fm-common` is called for screen lookups in hot paths (session build, escalation notifications, mitigation emitter). What is the state service's SLA and how does player-api behave under state service degradation? Is there a fallback or circuit breaker?
 
-10. **XxlJob integration**: XxlJob exposes an executor on port 9997, which is open in the ECS task definition. What jobs are scheduled, and is the XxlJob admin UI accessible from outside the VPC? The `telemetryCleanup` job is the only one visible in this codebase; are there others registered in the admin console?
+9. **XxlJob integration**: XxlJob exposes an executor on port 9997, which is open in the ECS task definition. What jobs are scheduled, and is the XxlJob admin UI accessible from outside the VPC? The `telemetryCleanup` job is the only one visible in this codebase; are there others registered in the admin console?

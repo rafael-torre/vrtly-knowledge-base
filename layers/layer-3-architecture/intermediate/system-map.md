@@ -1,6 +1,6 @@
 ---
 title: "System Map — Vrtly Platform"
-last_updated: 2026-06-09
+last_updated: 2026-06-10
 ---
 
 # System Map: Vrtly Platform
@@ -9,7 +9,7 @@ last_updated: 2026-06-09
 
 Vrtly is a digital-signage SaaS platform connecting two sides of a marketplace: healthcare practices (providers) and pharmaceutical/healthcare brands (sponsors). Providers manage waiting-room display screens; brands create advertising campaigns and educational content that play on those screens. The platform orchestrates content lifecycle from upload and transcoding through to real-time playlist delivery on physical display devices, with telemetry and analytics flowing back to both sides via a web-based management portal.
 
-At a system level, the platform comprises four analyzed services — a management web frontend (monorepo), a central backend API, a device-facing player API, and an HTML5 player app — plus several unanalyzed microservices (reach-and-frequency engine, state service, YouTube downloader, Cordova shell) and shared infrastructure (Amazon MQ, Redis ElastiCache, MySQL RDS, Elasticsearch, S3, CloudFront). The web frontend and HTML5 player app are static SPAs deployed to S3/CloudFront; the two backend APIs are containerized Spring Boot services running on ECS.
+At a system level, the platform comprises four analyzed services — a management web frontend (monorepo), a central backend API, a device-facing player API, and an HTML5 player app — plus several unanalyzed integrated services (reach-and-frequency engine, state service, YouTube downloader, Cordova shell) and shared infrastructure (Amazon MQ, Redis ElastiCache, MySQL RDS, Elasticsearch, S3, CloudFront). The web frontend and HTML5 player app are static SPAs deployed to S3/CloudFront; the two backend APIs are containerized Spring Boot services running on ECS.
 
 ---
 
@@ -36,110 +36,12 @@ At a system level, the platform comprises four analyzed services — a managemen
 
 ## Interaction Diagram
 
-```mermaid
-flowchart TD
-    subgraph Browsers["Web Browsers (CMS Users)"]
-        VH[vrtly-home\nAuth shell]
-        VPM[VPM\nProvider portal]
-        VAM[VAM\nAdvertiser portal]
-        ONB[Onboarding]
-    end
+See [System Overview Diagram](./system-overview-diagram.md) for the full four-view breakdown:
 
-    subgraph Devices["Display Devices"]
-        FTV[FireTV / Cordova shell]
-        ROKU[Roku player]
-        ATV[Android TV player]
-        WEBO[webOS / Tizen / iOS]
-    end
-
-    subgraph H5["html5core (Vue SPA on S3)"]
-        PLAYER[HTML5 Player App]
-    end
-
-    subgraph BackendAPIs["Backend APIs (ECS)"]
-        FMAPI[fmcom-api\nCentral backend]
-        PLAYERAPI[fmcom-player-api\nDevice-facing backend]
-    end
-
-    subgraph Microservices["Microservices (gaps)"]
-        RNF[rnf\nPlaylist resolver]
-        STATE[state\nScreen state]
-        YTD[youtube-downloader]
-    end
-
-    subgraph SharedInfra["Shared Infrastructure"]
-        MQ[Amazon MQ\nActiveMQ]
-        REDIS[Redis ElastiCache]
-        MYSQL[MySQL RDS]
-        ES[Elasticsearch]
-        S3CF[S3 + CloudFront]
-        EFS[AWS EFS]
-    end
-
-    subgraph ThirdParty["Third-party"]
-        STRIPE[Stripe]
-        GCP[GCP Pub/Sub\nFirebase]
-        META[Meta Graph API]
-        YOUTUBE[YouTube API]
-        TWILIO[Twilio SMS]
-        XXLJOB[XXL-Job Admin]
-    end
-
-    %% Web CMS → fmcom-api
-    VH -->|REST /cms/*| FMAPI
-    VPM -->|REST /cms/*| FMAPI
-    VAM -->|REST /cms/*\nVITE_REACH_AND_FREQUENCY_URL| FMAPI
-    ONB -->|REST /cms/*| FMAPI
-
-    %% HTML5 player → fmcom-player-api
-    FTV -->|loads html5core from S3| PLAYER
-    WEBO -->|loads html5core from S3| PLAYER
-    PLAYER -->|REST /player/*| PLAYERAPI
-    PLAYER -->|WSS /ws| PLAYERAPI
-    PLAYER -->|REST /cms/encrypt| FMAPI
-
-    %% Native players → fmcom-player-api
-    ROKU -->|REST + WS| PLAYERAPI
-    ATV -->|REST + WS| PLAYERAPI
-
-    %% fmcom-api ↔ microservices
-    FMAPI -->|Feign HTTP| RNF
-    FMAPI -->|Feign HTTP| STATE
-    FMAPI -->|JMS dispatch| MQ
-    MQ -->|YOUTUBE_DOWNLOAD| YTD
-    YTD -->|HTTP /internal/youtube-downloads/*| FMAPI
-
-    %% fmcom-player-api ↔ microservices
-    PLAYERAPI -->|Feign HTTP| RNF
-    PLAYERAPI -->|fm-common ScreenStateClient| STATE
-    MQ -->|PLAYER_* topics| PLAYERAPI
-    PLAYERAPI -->|API_CONTENT_QUARANTINE| MQ
-
-    %% fmcom-api ↔ fmcom-player-api (indirect via MQ and internal API)
-    FMAPI -->|JMS: PLAYER_CONTENT_*, PLAYER_ORG_* etc| MQ
-    PLAYERAPI -->|SERVICE_DISCOVER_API (internal HTTP)| FMAPI
-
-    %% Shared infra
-    FMAPI --- REDIS
-    FMAPI --- MYSQL
-    FMAPI --- ES
-    FMAPI --- S3CF
-    FMAPI --- EFS
-    PLAYERAPI --- REDIS
-    PLAYERAPI --- MYSQL
-    PLAYERAPI --- ES
-    PLAYERAPI --- S3CF
-
-    %% Third-party
-    FMAPI --- STRIPE
-    FMAPI --- META
-    FMAPI --- YOUTUBE
-    FMAPI --- TWILIO
-    FMAPI --- XXLJOB
-    PLAYERAPI --- XXLJOB
-    GCP -->|Pub/Sub webhook POST| FMAPI
-    STRIPE -->|webhook POST| FMAPI
-```
+- **View 1 — System Context**: actors (Provider, Sponsor, Device Admin), system areas, and external integrations
+- **View 2 — CMS Frontend + fmcom-api**: CMS portals, routing, fmcom-api internals, and owned infrastructure
+- **View 3 — Device + fmcom-player-api**: device layer, html5core, player API, ABR escalation, and shared infra
+- **View 4 — Async + Gap Services**: Amazon MQ event bus, XXL-Job scheduler, and the three gap microservices (rnf, state, youtube-downloader)
 
 ---
 
@@ -157,7 +59,7 @@ flowchart TD
 
 1. A provider uploads a video via VPM → `POST /cms/dashboard/content` → `fmcom-api`.
 2. `fmcom-api` stores the file on S3 (via AWS SDK / EFS), creates a `Content` entity in MySQL with `transcodingStatus: PENDING`, and dispatches a JMS message to Amazon MQ (`RNF_MEDIA_PROCESSING` destination).
-3. The `rnf` service (gap) picks up the message, runs transcoding via AWS Elastic Transcoder, and publishes completion events back via JMS (`API_CONTENT_ADD`).
+3. The `rnf` service (gap) picks up the message and runs transcoding via AWS Elastic Transcoder. A completion event is published to JMS (`API_CONTENT_ADD`). **Note:** who publishes `API_CONTENT_ADD` is unconfirmed — `fmcom-api` appears in both the publish and subscribe sets for this destination in the spike evidence; it may be `rnf` or a self-loop within `fmcom-api`. Requires `rnf` spike to resolve.
 4. `fmcom-api` receives the completion event via its JMS `ContentMessageHandlers`, updates the `Content` entity to `COMPLETE`, and triggers Elasticsearch post-commit sync.
 5. `fmcom-player-api` receives the `PLAYER_CONTENT_UPDATED` or `PLAYER_CONTENT_TRANSCODED_BATCH` JMS event, invalidates cached playlist state for affected screens, and pushes a `CONTENT_CHANGED` WebSocket message to connected devices.
 
@@ -175,15 +77,16 @@ flowchart TD
 2. `fmcom-player-api`'s `TelemetryEventAnalyzerService` dispatches each event asynchronously to registered `TelemetryDetectionRule` implementations.
 3. `PlaybackQualityCapRule` writes a per-screen Redis entry (30 min TTL) when ABR bitrate events indicate network degradation, capping quality for all subsequent playlist fetches on that screen.
 4. `ContentPlaybackEscalationRule` advances the per-(screen, content) escalation state machine in Redis when decode failures exceed a configurable threshold, stepping through `HLS_FULL → HLS_720 → SRC_ORIGINAL → SRC_720 → SRC_540 → QUARANTINE`.
-5. `MITIGATION` telemetry events are written to Elasticsearch; the admin diagnostics dashboard in `fmcom-api` reads these for operator visibility.
-6. Device telemetry events from Firebase are also forwarded to `fmcom-api` via GCP Pub/Sub inbound webhook (`POST /webhook/gcp/pubsub`), where they are decoded by `ExternalEventConverter` implementations and handed to `TelemetryService`.
+5. `MITIGATION` telemetry events are written to Elasticsearch. A diagnostics dashboard (confirmed in `fmcom-player-api`'s spike; likely also in `fmcom-api`'s admin layer — exact service is unconfirmed) reads these events for operator visibility.
+6. In parallel, `html5core` sends a separate HTTP `POST report/content` to `fmcom-player-api` every 7 minutes (or on a WebSocket `REPORT` command). This is a distinct played-content record used for analytics and billing — not the WebSocket telemetry stream.
+7. Device telemetry events from Firebase are also forwarded to `fmcom-api` via GCP Pub/Sub inbound webhook (`POST /webhook/gcp/pubsub`), where they are decoded by `ExternalEventConverter` implementations and handed to `TelemetryService`.
 
 ### 5. CMS user session (provider/brand)
 
 1. A user signs in at `https://my.vrtly.ai` via `vrtly-home`, which calls `POST /cms/auth/login` on `fmcom-api`.
 2. `fmcom-api` validates credentials, stores the session token in Redis (key from `fm-common` auth module), and returns `access` + `secret` tokens.
 3. The frontend stores both tokens in localStorage and injects them as raw HTTP headers on every subsequent request via the Axios interceptor in `packages/api/request/index.ts`.
-4. `vrtly-home` reads `organization.type` from the login response and routes `PROVIDER` users to VPM (`/provider`) and `SPONSOR` users to VAM (`/brands`).
+4. `vrtly-home` reads `organization.type` from the locally persisted `organization` key in localStorage (populated at login) and routes `PROVIDER` users to VPM (`/provider`) and `SPONSOR` users to VAM (`/brands`). This routing is client-side only — if the localStorage value is stale (e.g., after a role change), the routing decision is wrong until the user forces a reload.
 5. API calls from VPM and VAM flow to `fmcom-api`'s CMS controller layer (`/cms/**`), which uses Spring Security's `TokenBasedAuthenticationFilter` + Redis lookup to authenticate and authorize each request.
 
 ---
@@ -200,6 +103,7 @@ flowchart TD
 | **AWS CloudFront** | `fmcom-api` (signed URL generation via CloudFront private key for CMS content delivery), `fmcom-player-api` (signed URL generation for every playlist content URL delivered to devices; domain `d1cgzt8pcd208o.cloudfront.net`), `fmcom-vrtly-fe-monorepo` (CDN for SPA bundles), `html5core` (CDN for player app bundle) | Both backend services independently sign CloudFront URLs using RSA private keys. `fmcom-player-api` has `private_key.pem` committed to source — critical security gap. |
 | **AWS EFS** | `fmcom-api` (mounted at `/mnt/efs` for shared media file storage between container instances) | Not referenced in `fmcom-player-api` — EFS appears to be used only for the media processing pipeline side. |
 | **AWS Elastic Transcoder** | `fmcom-api` (dispatches transcoding jobs) | Indirect dependency for `fmcom-player-api` — transcoded content variants (HLS ladder, MP4 ladder) are what the escalation state machine steps through. |
+| **AWS Transcribe** | `fmcom-api` (`TranscribeService`, `TranscribeJobTaskExecutor`) | Speech-to-text for subtitle generation. Long-running job polled by `TranscribeJobTaskExecutor`; result stored alongside the transcoded media. Used for subtitle delivery to `html5core` in production. |
 | **XXL-Job Admin** | `fmcom-api` (executor port 9999; 15+ jobs: Stripe sync, social sync, ad slot generation, sponsor notifications, transcription repair), `fmcom-player-api` (executor port 9997; telemetry cleanup, failed report log parsing) | Shared XXL-Job admin server at `https://jobs.prod.vrtly.app/job-admin/`. Single point of failure for all scheduled tasks across both services. |
 | **AWS CodeArtifact** | `fmcom-api` and `fmcom-player-api` (runtime dependency: `fm-common` JAR), `fmcom-vrtly-fe-monorepo` (npm dependency: `@vrtly/component-library`) | Domain `vrtly`, account `515289352310`, region `us-west-2`. Both build-time and deployment-time credential dependency. |
 | **AWS SSM Parameter Store** | `fmcom-player-api` (confirmed — all sensitive env vars injected via SSM ARNs in ECS task definitions), `fmcom-api` (env vars override application.yml defaults in ECS task definitions; SSM not explicitly confirmed but assumed same pattern) | Secrets management for DB credentials, Redis auth, MQ credentials, CloudFront keys, encryption keys. |
@@ -222,6 +126,14 @@ flowchart TD
 - Request signing: `SHA-1(serialNumber + timestamp)` with a 300-second replay window. Cryptographically weak — SHA-1 is deprecated for authentication.
 - Response encryption: AES-CBC using a server-provided key (itself double-encrypted); key is stored in Pinia memory only and lost on reload.
 - WebSocket at `wss://player.vrtly.ai/ws` uses the same session mechanism. Real-time commands flow server → client; telemetry and heartbeats flow client → server.
+- **Unauthenticated HLS streaming endpoint**: `/player/content/stream/{store}/{id}/{res}/{filename}.m3u8` is explicitly excluded from all security and session interceptors in `fmcom-player-api`. The endpoint is publicly reachable without credentials and carries a 24-hour `Cache-Control` header. CloudFront signed URL protection is absent on this path.
+- **Horizontal scaling constraint**: `fmcom-player-api` holds HTTP sessions and WebSocket connections in node-local in-memory maps (`SessionHolder`, `WsSessionHolder`). Multiple ECS task replicas require ALB sticky sessions to ensure HTTP requests land on the node holding the device's WebSocket connection. Cross-node WebSocket pushes are silently queued in `unsentNotice` rather than delivered live.
+
+### VPM / VAM → html5core (content preview)
+
+- Both VPM and VAM embed the `html5core` player in an iframe or popup for content preview, using a browser-level `postMessage` protocol.
+- Protocol: the CMS app sends `SEND_CONTENT`; the player responds with `READY` then `RECEIVE_CONTENT` on success.
+- This browser-to-browser channel is independent of the backend APIs and requires the `postMessage` protocol to stay in sync across both repos. No server-side enforcement exists.
 
 ### fmcom-player-api → fmcom-api (internal API boundary)
 
@@ -256,7 +168,7 @@ The following services and packages are referenced within the four analyzed repo
 
 | Gap | Referenced by | Evidence | Follow-up needed |
 |---|---|---|---|
-| **`rnf` (Reach-and-Frequency / playlist resolver)** | `fmcom-api` (`RnfFeignClient`, JMS `RNF_MEDIA_PROCESSING`), `fmcom-player-api` (`RnfFeignClient`), `fmcom-vrtly-fe-monorepo` (`VITE_REACH_AND_FREQUENCY_URL`) | Prod URL: `https://rnf.prod.vrtly.app`; both backend services call it for playlist resolution | Spike needed: tech stack, playlist resolution algorithm, SOV rule engine, data ownership, SLA |
+| **`rnf` (Reach-and-Frequency / playlist resolver)** | `fmcom-api` (`RnfFeignClient`, JMS `RNF_MEDIA_PROCESSING`), `fmcom-player-api` (`RnfFeignClient`), `fmcom-vrtly-fe-monorepo` (`VITE_REACH_AND_FREQUENCY_URL` — dev env only; no active usage found in VAM source) | Prod URL: `https://rnf.prod.vrtly.app`; both backend services call it for playlist resolution | Spike needed: tech stack, playlist resolution algorithm, SOV rule engine, data ownership, SLA |
 | **`state` service** | `fmcom-api` (`ScreenStateClient`, `InstanceStateClient` from `fm-common`), `fmcom-player-api` (`ScreenStateClient`) | Prod URL: `https://state.prod.vrtly.app`; called in hot paths for screen lookups | Spike needed: screen state ownership vs MySQL (`MySqlScreenModule`), authority boundary with `fmcom-api`, degradation behavior |
 | **`youtube-downloader` service** | `fmcom-api` (JMS `YOUTUBE_DOWNLOAD`, internal HTTP `/internal/youtube-downloads/**`) | Bidirectional: `fmcom-api` dispatches jobs; downloader calls `/complete` or `/fail` back | Spike needed: download concurrency model, heartbeat protocol, failure/retry behavior |
 | **`fm-common` (internal library, version 8.9.0 / 8.8.9)** | `fmcom-api`, `fmcom-player-api` | AWS CodeArtifact: `vrtly-515289352310.d.codeartifact.us-west-2.amazonaws.com/maven/fm-common/` | Source spike needed: domain model definitions, JMS destination constants, Redis key namespacing, version governance process |
@@ -364,85 +276,21 @@ The map's Service Inventory lists VAM calling `VITE_REACH_AND_FREQUENCY_URL` →
 
 ### Missing Connections or Gaps
 
-**M1. `html5core` also calls `fmcom-api` for QR code image generation — missing from Mermaid.**
-The map's Integration Points section mentions "Info Pack QR generation" from the player but only lists `GET /cms/encrypt`. The html5core spike §External Integrations shows a second CMS API call: `cms/qr-code/generate-qr-code`. The Mermaid diagram has a single edge `PLAYER -->|REST /cms/encrypt| FMAPI`; the second endpoint is absent. Both calls need to be represented or the label should be generalized to `REST /cms/encrypt + /cms/qr-code/*`.
+**M1. `html5core` → `fmcom-player-api`: `report/content` flow not in the Data Flow Narrative.**
+The `report/content` path (html5core spike §playedContentReport.ts) is a separate HTTP `POST` submitted every 7 minutes — not via WebSocket — and is not mentioned anywhere in the map's Data Flow Narrative. The Mermaid edge `REST /player/*` covers it implicitly but it warrants a dedicated narrative step given its role in analytics and billing. *(Now partially addressed: added as step 6 of Flow 4.)*
 
-**M2. `html5core` → `fmcom-player-api` plays more routes than just `/player/*` and `/ws`.**
-The system map names `POST /player/playlist/current`, `POST /player/registerDevice`, and the WebSocket. The html5core spike §External Integrations and store list shows a broader set: `player/config`, `player/custom-playlist/{id}`, `player/custom-playlist/brand/{id}`, `player/consult/*`, `player/info-pack`, `player/plan`, `report/content`. The Mermaid edge `PLAYER -->|REST /player/*| PLAYERAPI` covers these implicitly, but the `report/content` path (§playedContentReport.ts) is a separate HTTP REST call submitted every 7 minutes — not via WebSocket — and is not mentioned anywhere in the map's Data Flow Narrative. This is a missing flow.
+**M2. `html5core` → `fmcom-player-api` plan reporting endpoint is unrepresented.**
+The html5core spike §plan.ts describes `usePlan` sending the upcoming playback schedule (next 10 items) to `player/plan` whenever the content index changes. It is covered by the `REST /player/*` diagram edge but has no narrative mention. It is also uncertain whether this store is actually activated in the running app — spike Open Question #2.
 
-**M3. `fmcom-vrtly-fe-monorepo` embeds `html5core` via iframe/postMessage for consult preview.**
-The fe-monorepo spike §External Integrations "HTML5 player" row and `playerCommunication.ts` show that VPM and VAM embed the `html5core` player in an iframe or popup for content preview, using a `postMessage` protocol (`READY` / `SEND_CONTENT` / `RECEIVE_CONTENT`). This browser-to-browser connection between the CMS SPA and the player SPA is entirely absent from the system map and Mermaid diagram. It is an important integration point because it requires keeping the postMessage protocol in sync across both repos.
+**M3. `fmcom-player-api` dynamic HLS master playlist endpoint is unauthenticated.**
+`/player/content/stream/{store}/{id}/{res}/{filename}.m3u8` is explicitly excluded from security and session interceptors. *(Now addressed: noted in Integration Points under html5core → fmcom-player-api.)*
 
-**M4. `html5core` → `fmcom-player-api` plan reporting endpoint is unrepresented.**
-The html5core spike §plan.ts describes `usePlan` sending the upcoming playback schedule (next 10 items) to `player/plan` whenever the content index changes. This is a distinct HTTP call not covered by the map's narrative.
+**M4. `fmcom-player-api` Bucket4j rate limiting layer.**
+The fmcom-player-api spike §Tech Stack lists Bucket4j 8.10.1 for in-memory/Redis-backed rate limiting on HTTP and WS handshake. The system map's interceptor description mentions security and session interceptors but not rate limiting. Low-priority documentation gap — no architectural decision depends on it currently.
 
-**M5. `fmcom-api` uses AWS Transcribe (speech-to-text) — absent from the map.**
-The fmcom-api spike §Tech Stack lists "AWS SDK v2 (`transcribe`) — Speech-to-text for subtitle generation" and §External Integrations confirms `TranscribeService` and `TranscribeJobTaskExecutor`. The Shared Infrastructure table and Third-party subgraph in the Mermaid diagram do not include AWS Transcribe at all. Given that subtitle delivery to `html5core` is a documented data flow (html5core spike §Subtitle delivery), the upstream Transcribe pipeline is a meaningful gap.
+**M5. `fmcom-player-api` in-memory session store is not horizontally safe.**
+*(Now addressed: noted in Integration Points under html5core → fmcom-player-api.)*
 
-**M6. `fmcom-api` uses Shippo for hardware shipping — absent from Mermaid.**
-The fmcom-api spike §External Integrations explicitly lists Shippo as a bidirectional integration (`shippo-java-client` SDK + `ShippoConnector` REST controller). The fe-monorepo spike §Key Data Entities includes `Order`/`OrderItem` as domain entities. The Mermaid diagram's `ThirdParty` subgraph omits Shippo entirely.
+**M6. URL inconsistency: `api.vrtly.app` vs `api.prod.vrtly.app`.**
+The fe-monorepo spike uses `api.vrtly.app` (CMS surface); the fmcom-player-api spike uses `api.prod.vrtly.app` (inter-service). These may be two DNS names for the same ECS service or two separate ingress paths. Requires client confirmation before the next spike phase.
 
-**M7. `fmcom-api` uses Google Maps/Places — absent from Mermaid.**
-The fmcom-api spike §External Integrations lists Google Maps Services 2.1.2 for "address geocoding and place validation (`GooglePlaceService`)." The fe-monorepo spike §External Integrations confirms the client-side `GooglePlaceInput.vue` integration. The Mermaid diagram includes `GCP[GCP Pub/Sub\nFirebase]` in the ThirdParty subgraph but makes no mention of Google Maps. The two GCP integrations (Pub/Sub for telemetry and Maps for geocoding) are collapsed or the Maps integration is missing.
-
-**M8. `fmcom-api` uses SMTP (Spring Mail) — absent from Mermaid.**
-The fmcom-api spike §External Integrations includes "SMTP (send.smtp.com) — Spring Mail — Outbound — Transactional email." The map mentions consult notification email (`API_CONSULT_EMAIL_SEND` JMS) as a flow but the downstream SMTP relay is absent from the Mermaid diagram's ThirdParty subgraph.
-
-**M9. `fmcom-api` uses Intercom (inbound webhook) and MailChimp — absent from Mermaid.**
-The fmcom-api spike §External Integrations lists both Intercom (`IntercomController` inbound webhook) and MailChimp (`MandrillWebhookController` inbound + `MailChimpEmailLogService` outbound). Neither appears in the Mermaid diagram ThirdParty subgraph or the map's integration narrative.
-
-**M10. `fmcom-api` uses Salesforce CRM sync — absent from Mermaid.**
-The fmcom-api spike §External Integrations lists Salesforce as a conditional outbound integration gated by `salesforce.enabled`. The map's gap table mentions it only as an `Organization` field (`accountIdSFDC`). Given it is a named, gated integration calling external CRM endpoints, it warrants inclusion in the system map.
-
-**M11. iOS WKWebView bridge is an undocumented `html5core` platform.**
-The map's device list shows `FTV[FireTV / Cordova shell]`, `ROKU[Roku player]`, `ATV[Android TV player]`, and `WEBO[webOS / Tizen / iOS]` — iOS is lumped into the webOS/Tizen group. The html5core spike §External Integrations and `src/store/device.ts` show iOS has a dedicated `DeviceImpl` using `window.webkit.messageHandlers`. There is no iOS-specific shell or wrapper analogous to Cordova described in the map. This should be called out: iOS likely runs `html5core` inside a WKWebView in a native iOS container app, which is a separate gap analogous to `cordova-player`.
-
-**M12. `fmcom-player-api` dynamic HLS master playlist endpoint is unauthenticated and not in the map.**
-The fmcom-player-api spike §Notable Patterns observation #6 describes `/player/content/stream/{store}/{id}/{res}/{filename}.m3u8` as explicitly excluded from security and session interceptors. This endpoint reorders the HLS manifest on the fly as part of ABR mitigation. The system map's ABR section describes the escalation ladder and URL rewriting but does not surface this publicly reachable unauthenticated streaming endpoint.
-
-**M13. `fmcom-player-api` Bucket4j rate limiting layer is absent from the map.**
-The fmcom-player-api spike §Tech Stack lists Bucket4j 8.10.1 for "in-memory/Redis-backed rate limiting for HTTP and WS handshake" and §interceptor/ describes `RateLimitInterceptor` and `WsRateLimitInterceptor` as the first interceptors in both chains. The system map describes the security/session interceptors but makes no mention of rate limiting as an architectural concern.
-
-**M14. `fmcom-player-api` in-memory session store (`SessionHolder`) is not horizontally safe — map omits this constraint.**
-The fmcom-player-api spike §Notable Patterns observation #1 is detailed about the cross-node session routing problem: HTTP requests can land on a node that does not hold the WebSocket connection; cross-node WS sends are silently dropped to the `unsentNotice` bucket. The map mentions the WebSocket channel but does not surface that the in-memory session model creates a scaling constraint that requires either sticky sessions (ALB affinity) or accepting the silent-drop behavior. This is an architectural constraint that the system map should explicitly represent.
-
-**M15. `fmcom-vrtly-fe-monorepo` calls `fmcom-api` at `api.vrtly.app` — map shows `api.vrtly.app` but also references `api.prod.vrtly.app`.**
-The fe-monorepo spike §External Integrations consistently uses `api.dev.vrtly.app` / `api.vrtly.app`. The fmcom-player-api spike §External Integrations states player-api in prod is at `https://api.prod.vrtly.app`. The map uses both domains interchangeably. While these may resolve to the same service, the URL inconsistency between `api.vrtly.app` (CMS) and `api.prod.vrtly.app` (inter-service) should be clarified — they may be two different DNS names for the same ECS service or two separate ingress paths.
-
----
-
-### Recommended Corrections
-
-**R1. Add the second CMS API call from `html5core` to the Mermaid diagram.**
-Change the edge `PLAYER -->|REST /cms/encrypt| FMAPI` to `PLAYER -->|REST /cms/encrypt\n/cms/qr-code/*| FMAPI` to capture both endpoints from `html5core` to `fmcom-api`.
-
-**R2. Add Shippo, Google Maps, SMTP, Intercom, and MailChimp to the Mermaid ThirdParty subgraph.**
-The current diagram omits five confirmed external integrations of `fmcom-api`. At minimum add nodes and edges:
-- `FMAPI --- SHIPPO[Shippo]`
-- `FMAPI --- GMAPS[Google Maps]`
-- `FMAPI --- SMTP[SMTP / MailChimp]`
-- `INTERCOM[Intercom] -->|webhook POST| FMAPI`
-
-**R3. Add AWS Transcribe to the Shared Infrastructure subgraph.**
-Transcribe is a confirmed AWS service dependency for subtitle generation in `fmcom-api`. Add a node `TRANSCRIBE[AWS Transcribe]` and edge `FMAPI --- TRANSCRIBE`.
-
-**R4. Clarify or remove the `VITE_REACH_AND_FREQUENCY_URL` edge in the Mermaid diagram.**
-The fe-monorepo spike could not find any active usage of `VITE_REACH_AND_FREQUENCY_URL` in VAM source code. The edge `VAM -->|VITE_REACH_AND_FREQUENCY_URL| FMAPI` should be marked as `(unconfirmed / dormant)` in the label or removed until active usage is confirmed by a VAM-focused spike.
-
-**R5. Clarify who publishes `API_CONTENT_ADD` JMS message.**
-The §Content upload narrative states `rnf` publishes `API_CONTENT_ADD` to signal transcoding completion. The fmcom-api spike shows `API_CONTENT_ADD` in both fmcom-api's publish and subscribe sets, creating ambiguity. A note should be added: "Publisher of `API_CONTENT_ADD` is unconfirmed from current evidence — may be `rnf` or a self-loop within `fmcom-api`; requires `rnf` spike to resolve."
-
-**R6. Add the content played report flow to the Data Flow Narrative.**
-The §Telemetry and ABR mitigation section covers WebSocket-based telemetry but omits the periodic HTTP `POST report/content` call that `html5core` submits every 7 minutes or on REPORT WebSocket command (html5core spike §playedContentReport.ts). This is a distinct, important data flow for analytics and billing.
-
-**R7. Add the VPM/VAM → `html5core` iframe postMessage integration.**
-Add a new connection in the Mermaid diagram between the CMS SPA nodes and the PLAYER node, labeled `postMessage (consult preview)`, to represent the browser-level iframe communication channel. Add a brief note in Integration Points about the `READY` / `SEND_CONTENT` / `RECEIVE_CONTENT` protocol.
-
-**R8. Note the unauthenticated HLS streaming endpoint as an architectural risk.**
-In §html5core → fmcom-player-api, add a note: "The dynamic HLS master playlist endpoint `/player/content/stream/...` is explicitly excluded from all security and session interceptors — it is publicly reachable without credentials. CloudFront signed URL protection is absent on this path."
-
-**R9. Note the horizontal scaling constraint on `fmcom-player-api` session store.**
-In §html5core → fmcom-player-api or the Shared Infrastructure section, add: "The in-memory `SessionHolder` / `WsSessionHolder` design is not horizontally safe — multiple ECS task replicas require sticky sessions (ALB session affinity) to ensure HTTP requests land on the node holding the device's WebSocket connection. Cross-node WebSocket pushes are silently queued in `unsentNotice`."
-
-**R10. Correct the `organization.type` routing claim.**
-In §CMS user session, step 4, change "reads `organization.type` from the login response" to "reads `organization.type` from the locally persisted `organization` key in localStorage (populated at login); routing is client-side only and susceptible to stale-state errors if the localStorage value is not refreshed."
