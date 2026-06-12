@@ -166,7 +166,7 @@ If no `.companion.yaml` exists, offer to create one on first use.
 
 ## Frontmatter Conventions
 
-All `final/` docs should have:
+All `final/` and `intermediate/` docs should have. `owner` is optional in `intermediate/`. Every new document created in either folder must include this frontmatter — no exceptions.
 
 ```yaml
 ---

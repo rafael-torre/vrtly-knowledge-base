@@ -41,6 +41,13 @@ Sources: tech spikes for `reach-n-freq`, `fmcom-player-api`, `html5core-player`,
 | S-16 | XXL-Job admin outage stops daily playlist generation sweep | All 18 RNF XXL-Job handlers cease; daily `playlistDailyUpdate` never runs |
 | S-17 | In-process broker in State Service loses messages on ungraceful shutdown | State Service OOM-kill or SIGKILL drops all undelivered `PLAYER_*` topic messages |
 | S-18 | Deployment write storm saturates `SyncOpService` global lock in State Service | Per-screen mutex serializes all screen writes through a single monitor during deployment window |
+| S-19 | Org-wide fanout causes unnecessary reload for unaffected screens | `PLAYER_ORGANIZATION_CONTENT_UPDATED` triggers `CONTENT_CHANGED` to all screens in the org, not only affected ones |
+| S-20 | Clear-before-fetch gap blanks screen during every playlist reload | `setPlaylist([])` called before network request; fetch failure leaves screen permanently blank until watchdog |
+| S-21 | `encodeURIComponent` bug corrupts signed request URLs | Hand-rolled encoder only replaces first occurrence of reserved characters; SHA-1 signature mismatch causes server rejection |
+| S-22 | Consultation mode silently drops `CONTENT_CHANGED` | `reloadCurrentPlaylist()` returns immediately when `isConsults === true`; no retry or queue |
+| S-23 | In-memory WebSocket sessions lost across multi-node ECS deployments | `WsSessionHolder` is per-node; `CONTENT_CHANGED` lands on node without device session and is stored in `UnsentNotice` |
+| S-24 | `UnsentNotice` 30-second TTL drops `CONTENT_CHANGED` for offline or reconnecting devices | Notice discarded if device does not reconnect and call `register()` within 30 seconds |
+| S-25 | FREE and LOCKED tiers never receive content update notifications | Subscription-tier check in `fmcom-api` skips JMS publish for FREE/LOCKED; devices play stale playlist until next daily sweep |
 
 ---
 
@@ -559,6 +566,195 @@ Sources: tech spikes for `reach-n-freq`, `fmcom-player-api`, `html5core-player`,
 
 ---
 
+### S-19: Org-Wide Fanout Causes Unnecessary Reload for Unaffected Screens
+
+**Summary:** `PLAYER_ORGANIZATION_CONTENT_UPDATED` is an org-level message. When `fmcom-player-api` receives it, it queries all enabled screens in the organization and sends `CONTENT_CHANGED` to each one — regardless of whether a specific screen's content actually changed. Every screen clears its current playlist (`setPlaylist([])`) and re-fetches, creating a blank-screen window across the entire organization on any admin update.
+
+**Trigger:** Any admin action that publishes `PLAYER_ORGANIZATION_CONTENT_UPDATED` — including content additions, content removals, campaign changes, or screen configuration updates for even a single screen in the organization.
+
+**Full flow:**
+1. [fmcom-api or reach-n-freq] An admin action publishes `PLAYER_ORGANIZATION_CONTENT_UPDATED` to JMS for an organization.
+2. [fmcom-player-api] `MessageHandlers` receives the message. `ScreenNotificationServiceImpl` queries all enabled screens in the organization — not only the screen whose content changed.
+3. [fmcom-player-api] A `CONTENT_CHANGED` WebSocket command is pushed to every connected device in the organization.
+4. [html5core-player] Every device in the organization calls `reloadCurrentPlaylist()`. Each call immediately executes `setPlaylist([])` (see S-20), blanking the screen before the network request begins.
+5. [html5core-player] Each device re-fetches `GET /player/playlist/current`. Under normal conditions, the screen recovers within the network roundtrip. If the server is slow or the fetch fails, the blank window extends (see S-20 failure path).
+6. At scale — large organizations with many screens and frequent content updates — this pattern creates constant unnecessary disruption across devices that are playing content correctly.
+
+**Repos involved:** `fmcom-player-api`, `html5core-player`, `fmcom-api`, `reach-n-freq`
+
+**Telemetry coverage:**
+- *Exists today:* `CONTENT_CHANGED` WebSocket events are loggable at `fmcom-player-api`. `PlaybackWatchdog` telemetry events from affected devices are written to Elasticsearch.
+- *Missing:* No metric distinguishing a `CONTENT_CHANGED` that resulted in an actual playlist change versus one that produced an identical playlist. No count of screens that received `CONTENT_CHANGED` but re-fetched the same content they were already playing. No alert on `CONTENT_CHANGED` flood across an organization.
+
+**Assumptions:**
+- [assumption - strong] `PLAYER_ORGANIZATION_CONTENT_UPDATED` results in `CONTENT_CHANGED` being sent to all enabled screens in the organization — confirmed in `fmcom-player-api` message handler analysis.
+- [assumption - unverified] Whether `fmcom-player-api` performs any per-screen content-hash diffing to suppress `CONTENT_CHANGED` when the playlist would be identical is not confirmed.
+
+---
+
+### S-20: Clear-Before-Fetch Gap Blanks Screen During Every Playlist Reload
+
+**Summary:** `reloadCurrentPlaylist()` in `html5core-player` calls `setPlaylist([])` before issuing the network request to fetch the new playlist. The screen goes blank at the moment of the clear and stays blank for the entire network roundtrip. If the fetch fails, `setPlaylist([])` has already been called and nothing replaces it — the screen stays blank until the `playbackWatchdog` fires at 20 seconds and triggers another reload cycle.
+
+**Trigger:** Any `reloadCurrentPlaylist()` call — from a `CONTENT_CHANGED` WebSocket message, from the 20-second watchdog threshold, or from a `CONFIG` WebSocket message.
+
+**Full flow:**
+1. [html5core-player] `reloadCurrentPlaylist()` is invoked from a WebSocket `CONTENT_CHANGED`, a 20-second watchdog threshold, or a `CONFIG` message.
+2. [html5core-player] `playbackController.setPlaylist([])` is called immediately, before any network activity. The player has no items to advance to. The screen goes blank.
+3. [html5core-player] `__loadSovPlaylist()` or `__loadCombinedPlaylist()` issues `GET /player/playlist/current`. The network request is in flight. The screen remains blank.
+4. [html5core-player] **Success path:** The server responds with a valid playlist. `setPlaylist(newPlaylist)` is called. The screen recovers. The blank window equals the network roundtrip (sub-second on LAN; longer on degraded connectivity or slow devices).
+5. [html5core-player] **Failure path:** `apiRequest()` returns `{}` on any network or server error. `_parsePlaylist` receives empty data and produces an empty array. `setPlaylist([])` is effectively called a second time — the screen is still blank. The watchdog fires at 20 seconds and triggers another `reloadCurrentPlaylist()`, restarting this cycle (see S-3 for the full reload loop).
+
+**Source:** `playlists.ts` → `reloadCurrentPlaylist()`: `playbackController.setPlaylist([])` called before `__loadSovPlaylist()` / `__loadCombinedPlaylist()`
+
+**Repos involved:** `html5core-player`, `fmcom-player-api`
+
+**Telemetry coverage:**
+- *Exists today:* `PlaybackWatchdog` telemetry events at the 20-second threshold are written to Elasticsearch. HTTP errors on `GET /player/playlist/current` are loggable at `fmcom-player-api`.
+- *Missing:* No metric on blank screen duration per `reloadCurrentPlaylist()` call. No signal distinguishing a successful reload (screen recovered within N seconds) from a failed reload (screen stayed blank). No alert when a clear-before-fetch blank window exceeds a threshold. `serverLogger.ts` `sendIssue()` is dead code — no client-side blank-screen event reaches the server (see S-3 assumptions).
+
+**Assumptions:**
+- [assumption - strong] `setPlaylist([])` is called before the network request in `reloadCurrentPlaylist()` — confirmed in `playlists.ts` source analysis.
+- [assumption - strong] `apiRequest()` returns `{}` (not throws) on failure, and `_parsePlaylist` produces an empty array on `{}` input — confirmed in `src/utils/api.ts` analysis.
+- [assumption - unverified] The blank window on slow devices (webOS, Tizen with Chrome 53 target) during a successful reload may be significantly longer than on modern hardware; this is not benchmarked.
+
+---
+
+### S-21: `encodeURIComponent` Bug Corrupts Signed Request URLs
+
+**Summary:** The hand-rolled `encodeURIComponent` implementation in `src/utils/api.ts` only replaces the first occurrence of each reserved character in a query parameter value. Subsequent occurrences are left unencoded. For signed requests (which use SHA-1 of the full URL), the URL constructed by the client does not match the signature computed over it — the server rejects the request with a signature mismatch error, causing a silent fetch failure and blank screen.
+
+**Trigger:** Any API request where a query parameter value contains more than one occurrence of the same reserved character (e.g., two `&` symbols, two `+` symbols, or two `=` signs in a content ID, session token, or playlist token).
+
+**Full flow:**
+1. [html5core-player] `playlists.ts` calls `GET /player/playlist/current` (or another signed endpoint). A query parameter value contains multiple occurrences of a reserved character.
+2. [html5core-player] `src/utils/api.ts` applies its hand-rolled `encodeURIComponent`. The first occurrence of each reserved character is percent-encoded; subsequent occurrences are passed through unencoded.
+3. [html5core-player] The SHA-1 signature is computed over the incorrectly-encoded URL and appended to the request.
+4. [fmcom-player-api] The server re-encodes the URL correctly using its standard library and recomputes the expected signature. The signatures do not match. The request is rejected (typically 401 or 403).
+5. [html5core-player] `apiRequest()` returns `{}`. `_parsePlaylist` produces an empty array. The S-20 failure path applies — `setPlaylist([])` has already been called and the screen stays blank.
+6. [html5core-player] The watchdog fires at 20 seconds and triggers another `reloadCurrentPlaylist()`. The same request is re-issued with the same encoding bug. The failure repeats indefinitely.
+
+**Source:** `src/utils/api.ts` (html5core)
+
+**Repos involved:** `html5core-player`, `fmcom-player-api`
+
+**Telemetry coverage:**
+- *Exists today:* 401/403 responses on `GET /player/playlist/current` are loggable at `fmcom-player-api`. HTTP error counts are observable in CloudWatch.
+- *Missing:* No distinction at the server between a signature mismatch caused by an encoding bug versus a legitimately invalid or expired signature. No client-side logging of the encoded URL before the request is sent. `serverLogger.ts` is dead code — the client cannot report this failure server-side. No automated test covering multi-occurrence reserved character encoding in `src/utils/api.ts`.
+
+**Assumptions:**
+- [assumption - strong] The hand-rolled `encodeURIComponent` in `src/utils/api.ts` replaces only the first occurrence of each reserved character — confirmed in the `html5core-player` tech spike.
+- [assumption - unverified] Whether any current production content IDs, session keys, or playlist tokens contain multi-occurrence reserved characters is not confirmed. The bug may be latent until such a value appears in a parameter.
+- [assumption - unverified] Whether `fmcom-player-api` returns 401, 403, or another status code on a signature mismatch is not documented in the spikes.
+
+---
+
+### S-22: Consultation Mode Silently Drops `CONTENT_CHANGED`
+
+**Summary:** When `html5core-player` is in consultation mode (`playbackController.isConsults === true`), any incoming `CONTENT_CHANGED` WebSocket command is silently discarded at the first guard check in `reloadCurrentPlaylist()`. No retry is scheduled, no queuing occurs. After the consultation ends, the screen continues playing the old playlist until another `CONTENT_CHANGED` arrives or the watchdog fires for an unrelated reason.
+
+**Trigger:** A `CONTENT_CHANGED` WebSocket command arrives while `playbackController.isConsults === true`.
+
+**Full flow:**
+1. [fmcom-player-api] A `CONTENT_CHANGED` WebSocket command is pushed to the connected device.
+2. [html5core-player] The WebSocket message handler invokes `reloadCurrentPlaylist()`.
+3. [html5core-player] `reloadCurrentPlaylist()` checks `isConsults` as its first guard condition. `isConsults === true`. The function returns immediately. No network request is made. No state is updated. The update is permanently lost for this device.
+4. [html5core-player] After the consultation ends, `isConsults` is set to `false`. Playback resumes from the old playlist. If the content change was significant (quarantined content removed, new content added, SOV rebalanced), the screen plays a stale playlist indefinitely.
+5. [html5core-player] The screen receives the correct playlist only when: (a) a subsequent admin update publishes another `CONTENT_CHANGED`; (b) the `playbackWatchdog` fires for a different reason (stall, failed decode); or (c) the screen reloads for another reason.
+
+**Repos involved:** `html5core-player`, `fmcom-player-api`
+
+**Telemetry coverage:**
+- *Exists today:* `CONTENT_CHANGED` WebSocket delivery is loggable at `fmcom-player-api`. Consultation state transitions may be observable in session logs.
+- *Missing:* No server-side or client-side record that a `CONTENT_CHANGED` was dropped due to consultation mode. No deferred delivery mechanism. No alert when `CONTENT_CHANGED` is discarded. No metric on how frequently consultation mode is active across the fleet at the time a content update is published.
+
+**Assumptions:**
+- [assumption - strong] `reloadCurrentPlaylist()` returns immediately when `isConsults === true` with no retry or queue — confirmed in the `html5core-player` tech spike.
+- [assumption - unverified] Whether `fmcom-player-api` re-sends `CONTENT_CHANGED` after a timeout (to handle the consultation-mode drop case) is not confirmed.
+
+---
+
+### S-23: In-Memory WebSocket Sessions Lost Across Multi-Node ECS Deployments
+
+**Summary:** Device WebSocket sessions are stored in `WsSessionHolder` — an in-memory `ConcurrentHashMap` per `fmcom-player-api` node. When `fmcom-player-api` runs as multiple ECS task replicas without ALB sticky sessions, a JMS-triggered `CONTENT_CHANGED` notification can be processed by a node that does not hold the device's WebSocket session. The message is stored in `UnsentNoticeService` and is silently discarded within 30 seconds if the device does not reconnect to the same node.
+
+**Trigger:** `fmcom-player-api` running as more than one ECS replica without ALB sticky sessions, receiving a JMS `PLAYER_CONTENT_TRANSCODED` or `PLAYER_ORGANIZATION_CONTENT_UPDATED` notification for a device connected to a different node.
+
+**Full flow:**
+1. [fmcom-player-api / node A] Device D is WebSocket-connected to node A. Its session is stored in `WsSessionHolder` on node A only.
+2. [fmcom-player-api / node B] A JMS message (`PLAYER_CONTENT_TRANSCODED` or similar) is consumed by node B. `MessageHandlers` on node B attempts to push `CONTENT_CHANGED` to device D. `WsSessionHolder` on node B does not contain device D's session.
+3. [fmcom-player-api / node B] The notification is stored in `UnsentNoticeService` on node B — in-memory, 30-second TTL, cleaned every 10 seconds.
+4. [html5core-player] Device D does not receive `CONTENT_CHANGED`. If device D's next HTTP request (heartbeat, registration) goes to node A, node B's `UnsentNoticeService` entry is never checked and the TTL expires.
+5. [html5core-player] The device continues playing the old playlist. The content update is silently lost unless a subsequent update triggers another push or the watchdog causes a reload.
+
+**Repos involved:** `fmcom-player-api`, `html5core-player`
+
+**Telemetry coverage:**
+- *Exists today:* ALB access logs show which node received each request. WebSocket connection events per node are observable in CloudWatch logs.
+- *Missing:* No metric on `UnsentNotice` entries that expired without delivery. No alert when `CONTENT_CHANGED` push rate diverges from WebSocket delivery rate. Whether ALB sticky sessions are configured for the `fmcom-player-api` target group in production is not confirmed — identified as open question OQ3 in the risk register.
+
+**Assumptions:**
+- [assumption - strong] `WsSessionHolder` is an in-memory `ConcurrentHashMap` per node with no cross-node sharing — confirmed in the `fmcom-player-api` tech spike.
+- [assumption - unverified] Whether ALB sticky sessions (`stickiness.enabled`) are configured for the `fmcom-player-api` target group in production is not confirmed (open question OQ3).
+- [assumption - unverified] Whether `UnsentNoticeService` entries are deliverable only on the node that holds them, or whether any reconnect to any node can trigger delivery, is not documented.
+
+---
+
+### S-24: `UnsentNotice` 30-Second TTL Drops `CONTENT_CHANGED` for Offline or Reconnecting Devices
+
+**Summary:** When a device's WebSocket session is closed at the moment `fmcom-player-api` dispatches `CONTENT_CHANGED`, the notification is stored in `UnsentNoticeService` — an in-memory queue with a 30-second TTL, cleaned every 10 seconds. If the device does not reconnect and call `register()` within 30 seconds, the notification is permanently discarded. The device reconnects successfully but receives no knowledge of the pending content update.
+
+**Trigger:** Device WebSocket session is closed (network interruption, device sleep, mid-deployment reconnect) when a `CONTENT_CHANGED` is dispatched by `fmcom-player-api`.
+
+**Full flow:**
+1. [fmcom-player-api] A `CONTENT_CHANGED` WebSocket command is dispatched for device D. The device's session is not found in `WsSessionHolder` (session closed or device offline).
+2. [fmcom-player-api] `UnsentNoticeService.queue(deviceId, CONTENT_CHANGED)` stores the notification in memory with a creation timestamp. The TTL is 30 seconds.
+3. [fmcom-player-api] The `UnsentNoticeService` cleanup task runs every 10 seconds and discards any entry older than 30 seconds.
+4. [html5core-player] **Recovery path:** Device D reconnects and calls `register()` within 30 seconds. `fmcom-player-api` checks `UnsentNoticeService`, finds the pending notice, and delivers `CONTENT_CHANGED`. The device reloads its playlist.
+5. [html5core-player] **Loss path:** Device D reconnects after more than 30 seconds (longer network outage, device reboot, power recovery after building outage). The notice has been discarded. The device re-registers successfully and resumes playing the old playlist with no knowledge that content was updated.
+6. [html5core-player] The device continues playing stale content until the next `CONTENT_CHANGED` is triggered by a subsequent admin update, or the watchdog causes a reload for another reason.
+
+**Repos involved:** `fmcom-player-api`, `html5core-player`
+
+**Telemetry coverage:**
+- *Exists today:* WebSocket reconnect events are loggable at `fmcom-player-api`. `POST /player/registerDevice` calls after reconnect are observable.
+- *Missing:* No metric on `UnsentNotice` entries discarded after TTL expiry. No alert when a device reconnects and receives no pending notification despite a content update having occurred during its offline window. No correlation between device offline events and pending content updates.
+
+**Assumptions:**
+- [assumption - strong] `UnsentNoticeService` uses a 30-second TTL with a 10-second cleanup interval — confirmed in the `fmcom-player-api` tech spike.
+- [assumption - strong] Delivery only occurs on the next `register()` call from the device to the node that holds the unsent entry — confirmed in source analysis.
+- [assumption - unverified] Whether `fmcom-player-api` tracks the last-delivered playlist version per device and can detect a version mismatch on reconnect (triggering a push without a queued notice) is not confirmed.
+
+---
+
+### S-25: FREE and LOCKED Tiers Never Receive Content Update Notifications
+
+**Summary:** `fmcom-api` applies subscription-based throttling and skips publishing to JMS for screens on the FREE or LOCKED subscription tier. No `PLAYER_CONTENT_TRANSCODED` or `PLAYER_ORGANIZATION_CONTENT_UPDATED` message is sent for those organizations. Devices on FREE or LOCKED tiers never receive a `CONTENT_CHANGED` WebSocket command and continue playing their last-fetched playlist until the next daily sweep, which may be up to 24 hours later.
+
+**Trigger:** Any content update (transcode completion, admin content change) for an organization on the FREE or LOCKED subscription tier.
+
+**Full flow:**
+1. [fmcom-api] A content update occurs for an organization on the FREE or LOCKED tier.
+2. [fmcom-api] The subscription-tier check in `fmcom-api`'s notification path evaluates the organization's tier. FREE and LOCKED tiers are excluded from JMS publication. No message is sent to `PLAYER_CONTENT_TRANSCODED` or `PLAYER_ORGANIZATION_CONTENT_UPDATED`.
+3. [reach-n-freq] No playlist regeneration is triggered for the affected screens. `ElasticPlaylistSchedule` remains unchanged until the next daily `playlistDailyUpdate` sweep.
+4. [fmcom-player-api] No `CONTENT_CHANGED` WebSocket command is dispatched to devices in the organization.
+5. [html5core-player] Devices continue playing the last-fetched playlist. New content is not shown regardless of when the transcode completed. If the last-fetched playlist contains content that has since been quarantined or removed, the device continues attempting to play broken content until the watchdog escalates or the daily sweep runs.
+6. [reach-n-freq] The next daily `playlistDailyUpdate` sweep generates a fresh schedule for all tiers including FREE and LOCKED. After that sweep, the next `resetPlaylist` or reload picks up the updated content.
+
+**Note:** Tier-based throttling of push notifications is intentional business logic, not a defect. However, it can produce visible blank screens when a FREE or LOCKED screen's playlist contains content that becomes unplayable (quarantine, expired S3 URL, failed transcode) in the up-to-24-hour window before the next daily sweep.
+
+**Repos involved:** `fmcom-api`, `fmcom-player-api`, `html5core-player`, `reach-n-freq`
+
+**Telemetry coverage:**
+- *Exists today:* Subscription tier is stored in MySQL and is queryable. Daily sweep logs per organization are observable in CloudWatch.
+- *Missing:* No metric on how often FREE or LOCKED devices are serving content older than 24 hours that may be stale or unplayable. No alert when a FREE or LOCKED device's active playlist contains quarantined or expired content. No player-side indication that the device is on a throttled tier and will not receive push updates.
+
+**Assumptions:**
+- [assumption - strong] FREE and LOCKED tier screens are excluded from JMS notification publishing in `fmcom-api` — confirmed in the `possible-blank-screen-causes.md` flow analysis.
+- [assumption - unverified] Whether the daily sweep always runs for FREE and LOCKED tiers (i.e., tier throttling applies only to push notifications, not to scheduled generation) is not confirmed in the spikes.
+
+---
+
 ## Cross-Cutting Observations
 
 The following observations apply to multiple scenarios and represent systemic gaps rather than single-scenario risks.
@@ -572,3 +768,9 @@ The following observations apply to multiple scenarios and represent systemic ga
 **State Service is a single point of failure for multiple independent platform capabilities** — screen state authority, auth token management, Elasticsearch quota governance, and the in-process JMS broker. Every scenario that involves State Service unavailability cascades into multiple simultaneous failure modes across all other services.
 
 **`serverLogger.ts` is dead code.** The `html5core-player` server-side issue reporting mechanism (`sendIssue()`) has an unconditional early `return`, confirmed in the spike. No client-side error reporting reaches the backend except through the standard telemetry WebSocket path.
+
+**Every `reloadCurrentPlaylist()` call creates a blank-screen window by design.** The clear-before-fetch pattern in `html5core-player` guarantees a blank screen on every playlist reload — whether triggered by `CONTENT_CHANGED`, the watchdog, or a `CONFIG` message. This compounds S-19 (org-wide fanout) because every unnecessary `CONTENT_CHANGED` produces an unnecessary blank window across all org devices simultaneously.
+
+**`UnsentNoticeService` provides at-most-once delivery with a 30-second window.** Any device offline for more than 30 seconds during a content update receives no push notification on reconnect. This is a systemic delivery gap that applies to every scenario involving `CONTENT_CHANGED` delivery (S-7, S-19, S-23, S-24).
+
+**Org-level notification granularity amplifies every content update into a fleet-wide event.** Because `PLAYER_ORGANIZATION_CONTENT_UPDATED` targets all screens in an organization rather than only the affected screen(s), a single content change in a large organization triggers simultaneous blank-screen windows across every connected device. This interacts with S-20 (clear-before-fetch) and S-3 (reload loop) to multiply the blast radius of any upstream failure.
