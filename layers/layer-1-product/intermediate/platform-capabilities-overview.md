@@ -33,9 +33,13 @@ Internal staff who oversee the health of the platform: managing organizations, m
 
 ### Screen and Device Management
 
-Providers can register physical display devices to their practice account by scanning a pairing code shown on the screen. Once activated, each device is associated with the practice and begins receiving content. If a device restarts or loses power, it automatically re-registers on boot and resumes playback once the connection is restored — though there is a visible re-activation state during that window.
+Providers can register physical display devices to their practice account by scanning a pairing code shown on the screen. Once activated, each device is associated with the practice and begins receiving content. If a device restarts or loses power, it re-registers automatically on boot — but playback does not resume until a network connection is available. The platform requires an active internet connection on every startup to load content; there is no local cache or offline fallback. Until connectivity is restored, the screen displays a waiting state and cannot play content.
 
-Providers can maintain a library of registered screens, organize them, and control what content appears on each one. The platform supports multiple device types commonly found in commercial display environments.
+The platform keeps the screen awake while the app is running — the display will not sleep or dim during playback without an explicit OS-level power event.
+
+The platform identifies each physical device by its hardware model and a unique device identifier, which feeds device-level diagnostics and status reporting. The confirmed hardware platform for display devices is Amazon FireTV.
+
+Providers can maintain a library of registered screens, organize them, and control what content appears on each one.
 
 **Who uses it:** Practice Administrators
 **Key behaviors:** Pairing a new screen, reviewing which screens are active, associating screens with a practice account
@@ -147,7 +151,7 @@ Platform Operators have access to diagnostic and operational tools not available
 
 3. **How visible is content quality and quarantine status to providers and brands?** When a piece of content is automatically removed from rotation on a screen due to repeated playback failures, neither the provider nor the brand appears to receive a notification or see a status indicator in their portal. A sponsor whose content stopped playing has no diagnostic path to understand why their impressions dropped.
 
-4. **What is the expected recovery time when a screen restarts or loses power?** Devices re-register automatically on boot but display an activation screen during that process. The time from power-on to resumed playback depends on backend response times that are not currently measured or documented. For a waiting-room screen, that gap is patient-facing downtime.
+4. **What is the reliability expectation for network connectivity at practice venues, and is offline resilience a platform requirement?** The platform requires a live internet connection on every device startup to load content — there is no local cache or offline fallback on the display device. A device that reboots while offline will remain non-functional until connectivity is fully restored. For venues where network reliability cannot be guaranteed (or where reboots may occur during off-hours), this is a meaningful gap. The client should confirm whether offline resilience is a product requirement, and if so, what the acceptable recovery window is.
 
 5. **What is the current state and strategic direction of the consultation feature?** Some consultation-related functions appear to be marked for removal or replacement, while the broader feature is clearly active and embedded deeply in the platform. Is consultation a core differentiator being actively invested in, or a capability that is being wound down or redesigned?
 

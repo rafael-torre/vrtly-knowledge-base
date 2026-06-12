@@ -24,7 +24,7 @@ flowchart TD
     end
 
     subgraph Player["Player App · S3 / CloudFront"]
-        PlayerFE["html5core · cordova ⚠️\nVue 3 / FireTV WebView"]
+        PlayerFE["html5core · cordova-player\nVue 3 / FireTV WebView"]
     end
 
     subgraph Backend["Backend APIs · AWS ECS"]
@@ -109,7 +109,7 @@ Device-side player, the player API, and the infrastructure it owns. Includes the
 ```mermaid
 flowchart TD
     subgraph Device["Device / Player App"]
-        Cordova["cordova-player ⚠️\nFireTV native shell\nProvides device UUID + model"]
+        Cordova["cordova-player v1.0.8 · Cordova 13 / Android\nFireTV native shell — InAppBrowser wrapper\nLoads html5core from S3 · browserbridge + raminfo plugins\nExposes device UUID, model, platform via bridge relay"]
         HTML5["html5core · Vue 3 / TypeScript\nFireTV · webOS · Tizen · iOS · Browser\nPlaylist playback · telemetry batching\nABR event reporting · Info Pack QR"]
     end
 
@@ -128,7 +128,7 @@ flowchart TD
 
     FMComAPI["fmcom-api\ninter-service coordination"]
 
-    Cordova -->|"Loads player from S3 via WebView"| HTML5
+    Cordova -->|"Loads html5core from S3 via InAppBrowser"| HTML5
     HTML5 -->|"REST /player/* · SHA-1 signed ⚠️"| PACore
     HTML5 -->|"WSS persistent\nplaylist push · remote commands"| PACore
     HTML5 -->|"REST /cms/encrypt · /cms/qr-code/*\n(Info Pack QR only)"| FMComAPI
@@ -244,7 +244,6 @@ flowchart TD
 | Service | Evidence | Priority |
 |---|---|---|
 | `youtube-downloader` | Bidirectional with `fmcom-api` via JMS (`YOUTUBE_DOWNLOAD_DESTINATION`, `YOUTUBE_UPDATE_URL_DESTINATION`) + internal HTTP; `rnf` has a `YoutubeContentDownloadReenqueueJob` whose relationship to fmcom-api's `YoutubeDownloadRescueService` is unclear | Medium |
-| `cordova-player` (FireTV shell) | Wraps `html5core`; provides device UUID, model, and version via `window._cordovaNative` | Medium |
 | Roku player app | Special-cased in `fmcom-player-api` (`RokuMacMigrationService`, `RokuCertOverrideService`) | Medium |
 | Android TV player app | Implied by device type enum in `fmcom-player-api` | Low |
 | `my.vrtly.app` (patient info-pack portal) | QR code landing page referenced by `html5core` as `VITE_INFOPACK_URL`; URLs encrypted server-side before embedding | Low |
