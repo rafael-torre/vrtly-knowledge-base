@@ -1,6 +1,6 @@
 ---
 title: "Platform Capabilities Overview"
-last_updated: 2026-06-10
+last_updated: 2026-06-12
 ---
 
 # Platform Capabilities Overview
@@ -61,6 +61,8 @@ Providers can organize their approved content into sequences that control what p
 
 Brands define how much of the available screen time they want to occupy across the provider network, and the platform allocates slots accordingly. This allocation engine is the core of the marketplace — it is the mechanism by which brand spend translates into screen time at specific practices.
 
+The scheduling engine is aware of each practice's operating hours and only schedules content during business hours. Within those hours, the engine further adjusts the content mix based on patient traffic volume at different times of day — periods of high patient volume are treated differently from quieter periods. This means a brand's content is weighted toward the moments when the most patients are in the waiting room, without any manual configuration from the provider or brand.
+
 **Who uses it:** Practice Administrators (programming their own content), Brand Managers (configuring campaign targeting and share of screen time), Platform Operators (oversight)
 **Key behaviors:** Building a content sequence, setting a campaign budget and target, reviewing scheduled plays
 
@@ -107,6 +109,8 @@ The platform collects data throughout the content lifecycle: what played on whic
 
 For providers, the reporting covers screen activity and consultation engagement. For brands, it covers campaign delivery: how many times their content was shown and how consultations they distributed performed.
 
+The platform also generates proof-of-play records for brand campaigns — a verified log of what played, on which screens, and when — and SOV compliance reports that confirm each brand received the share of screen time it was contracted for. These are distinct from standard impression counts and are relevant to brand procurement and legal verification workflows.
+
 The connection between passive ad impression data and active consultation engagement data — giving a brand a unified view of ROI across both channels — is not confirmed from the current architecture view. Whether a brand can see both in a single report is an open question.
 
 **Who uses it:** Brand Managers (campaign and consultation performance), Practice Administrators (screen and engagement activity), Platform Operators (platform-wide diagnostics)
@@ -147,4 +151,4 @@ Platform Operators have access to diagnostic and operational tools not available
 
 5. **What is the current state and strategic direction of the consultation feature?** Some consultation-related functions appear to be marked for removal or replacement, while the broader feature is clearly active and embedded deeply in the platform. Is consultation a core differentiator being actively invested in, or a capability that is being wound down or redesigned?
 
-6. **What targeting controls do brands actually have when configuring a campaign?** The architecture confirms campaigns have impression and time-share goals, budgets, and date ranges. Whether brands can target by practice specialty, patient demographic, geography, or other criteria — and whether those constraints are enforced by the allocation engine — cannot be determined without analyzing the allocation service.
+6. **What targeting controls do brands actually have when configuring a campaign?** The allocation engine is confirmed to enforce share-of-voice percentage targets and impression-based goals, respects campaign date ranges, and distinguishes between paid and freemium tiers. What remains unconfirmed is whether brands can target by practice specialty, patient demographic, geography, or other practice-level attributes — and whether any such filters are enforced at the allocation level or only applied at campaign setup.
