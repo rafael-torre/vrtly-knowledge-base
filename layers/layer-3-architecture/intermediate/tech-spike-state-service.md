@@ -7,7 +7,7 @@ last_updated: 2026-06-12
 
 ## What This Service Does
 
-The state service (`state-service`) is a purpose-built stateful microservice that acts as the **authoritative screen registry and in-process message broker** for the Vrtly digital-signage platform. It is not a thin data proxy — it owns two distinct, mission-critical capabilities that would otherwise require external infrastructure:
+The state service (`state-service`) is a purpose-built stateful service that acts as the **authoritative screen registry and in-process message broker** for the Vrtly digital-signage platform. It is not a thin data proxy — it owns two distinct, mission-critical capabilities that would otherwise require external infrastructure:
 
 **1. Screen state authority.** The service holds the complete, live snapshot of every `Screen` entity in a JVM-resident `ConcurrentHashMap`. Reads return from memory in microseconds; writes are applied in-memory immediately (with optional deferred persistence) and flushed to MySQL on a 1-minute schedule or on demand when a deployment is signaled. All other services that need screen data — `fmcom-api`, `fmcom-player-api`, the RNF service — call this service via Feign clients (`ScreenStateClient`, `InstanceStateClient` from `fm-common`) rather than querying MySQL directly. This makes state-service the **single source of truth for screen state at runtime**.
 

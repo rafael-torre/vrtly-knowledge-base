@@ -522,7 +522,6 @@ The source code in this repository is at version **8.9.1** (as declared in `pom.
 
 1. **Which services currently import which modules?** The fmcom-api spike references approximately 60 `@Import`s. What is the exact import list for fmcom-player-api and rnf? Are there modules in `fm-common` that no service currently imports (dead code)?
 
-2. **What changed between 8.9.0 and 8.9.1?** Without a CHANGELOG or access to Bitbucket history, the exact diff is unknown. Is 8.9.1 safe to deploy to `fmcom-api` without additional Liquibase migrations or configuration changes? Is there a migration guide?
 
 3. **How are Redis keys protected from cross-service collision in practice?** Is there an operational convention (e.g. Redisson namespace in application config, separate Redis DB per service) not visible in `fm-common` itself? Or do the naming conventions in `RedisChannels` and `TelemetryRedisKeys` provide sufficient isolation?
 

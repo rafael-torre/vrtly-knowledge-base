@@ -192,7 +192,7 @@ flowchart TD
 
 ## View 5 — Internal Microservices
 
-Internal structure of the two newly analyzed backend services — rnf and state-service — and their relationships to the calling APIs and shared infrastructure. rnf is split into four functional subsystems; state-service into four owned capabilities. Both services share the same MySQL (`fm_store`) and Elasticsearch cluster as fmcom-api and fmcom-player-api.
+Internal structure of the backend services — rnf and state-service — and their relationships to the calling APIs and shared infrastructure. rnf is split into four functional subsystems; state-service into four owned capabilities. Both services share the same MySQL (`fm_store`) and Elasticsearch cluster as fmcom-api and fmcom-player-api.
 
 ```mermaid
 flowchart TD
@@ -240,16 +240,6 @@ flowchart TD
 
 ## Gap Services — Status
 
-### Resolved (spiked)
-
-| Service | Spike Date | Key Findings |
-|---|---|---|
-| `rnf` (reach-n-freq) | 2026-06-12 | Spring Boot 3.2.0 / Java 17 / `fm-common` 8.9.1. Playlist resolver (serves pre-computed ES schedules), SOV engine, FFmpeg transcoder, 18 XXL-Job handlers (port 9996). JMS: subscribes to 6 RNF_* queues; publishes `API_CONTENT_ADD` (sole transcoding publisher), `PLAYER_CONTENT_TRANSCODED`, `PLAYER_CONTENTS_TRANSCODED_BATCH`, `PLAYER_ORGANIZATION_CONTENT_UPDATED`, `PLAYER_SCREEN_CONTENT_UPDATED`. Hard `System.exit(-1)` on state-service heartbeat loss. |
-| `state-service` | 2026-06-12 | Spring Boot 3.3.2 / Java 17 / `fm-common` 8.7.8 (oldest version in fleet). Authoritative screen registry (JVM `ConcurrentHashMap`), in-process HTTP long-poll broker, auth token management (`user_token` MySQL table), sole ES concurrency budget coordinator. No `SecurityFilterChain` — all endpoints open within VPC. Port 9092. |
-| `fm-common` JAR | 2026-06-12 | Current source at 8.9.1. Four production versions: fmcom-api 8.9.0, fmcom-player-api 8.8.9, rnf 8.9.1, state 8.7.8. 31 typed JMS destinations, 80+ MySQL JPA modules, 37 Elasticsearch modules, all Feign clients for state-service. No CHANGELOG; no auto-configuration. |
-| `@vrtly/component-library` | 2026-06-12 | Version 0.8.20. 41 Vue 3 components, 111 icons, SCSS token system. Element Plus bundled (not externalized) — double-bundle risk in all four SPAs. ESM-only with broken `require` field. No CHANGELOG; no integration test against monorepo. |
-
-### Outstanding (not yet analyzed)
 
 | Service | Evidence | Priority |
 |---|---|---|
