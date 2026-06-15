@@ -1,383 +1,203 @@
 ---
-title: "Investigation: Telemetry Kill Zones and Instrumentation Gaps — html5core"
+title: "Investigation — html5core Telemetry Kill Zones and Instrumentation Gaps"
 owner: "Tech Lead"
 status: consensus
-last_updated: 2026-06-12
+last_updated: 2026-06-15
 relates_to:
-  - layers/layer-3-architecture/intermediate/playlist-update-flow-html5core.md
+  - layers/layer-3-architecture/intermediate/html5core-playlist-playback-flow.md
+  - layers/layer-3-architecture/intermediate/html5core-playlist-update-flow.md
   - layers/layer-3-architecture/intermediate/blank-screen-scenarios.md
   - layers/layer-3-architecture/intermediate/tech-spike-html5core-player.md
-  - layers/layer-3-architecture/intermediate/tech-spike-fmcom-api.md
+  - layers/layer-3-architecture/intermediate/tech-spike-fmcom-player-api.md
   - layers/layer-3-architecture/intermediate/tech-spike-rnf.md
   - layers/layer-3-architecture/intermediate/tech-spike-state-service.md
-  - layers/layer-3-architecture/intermediate/tech-spike-fmcom-player-api.md
+  - layers/layer-3-architecture/intermediate/tech-spike-fmcom-api.md
 ---
 
-# Investigation: Telemetry Kill Zones and Instrumentation Gaps — html5core
+# Investigation: html5core Telemetry Kill Zones and Instrumentation Gaps
 
 ## Hand-off Brief
 
-1. **What happened.** Systematic audit of every node in the html5core content update flow (N0–N8) to determine: (a) where the code attempts to emit a signal that does not survive to the observability layer (kill zones — Dimension 1), and (b) where a blank-screen path exists with no instrumentation attempt at all (instrumentation gaps — Dimension 2).
-2. **Where the case stands.** Concluded. All findings are confirmed or strongly deduced from tech spikes, source analysis of `playlist-update-flow-html5core.md`, and the 25 blank-screen scenarios. 14 kill zones and 11 instrumentation gaps identified across N1–N8.
-3. **What's needed next.** Use `telemetry-analysis-html5core.md` as primary input for the `skill-roundtable` (Paso 2) to assess whether the 80% coverage objective is structurally achievable given these gaps.
+1. **What happened.** For each node in the html5core playback and content-update flows, the investigation mapped which telemetry signals are attempted but lost in transit (kill zones) and which failure paths emit no signal at all (instrumentation gaps); the consolidated findings are in `html5core-telemetry-analysis.md`.
+2. **Where the case stands.** Concluded. 23 distinct findings identified: 11 kill zones (7 reparable by instrumentation, 4 requiring architectural change) and 12 instrumentation gaps (all reparable). Of the 25 blank-screen scenarios, none have the blank moment itself logged; 9 have partial recovery signal; 8 have partial causal context.
+3. **What's needed next.** `skill-roundtable` (Winston + Amelia + John) to evaluate whether 80% coverage is achievable in 1 month given this distribution of fixes — particularly the 4 structural kill zones that require architectural changes rather than logging additions.
 
 ## Case Info
 
 | Field | Value |
 |---|---|
 | Ticket | N/A |
-| Date opened | 2026-06-12 |
+| Date opened | 2026-06-15 |
 | Status | Concluded |
-| System | html5core fleet; backend: fmcom-api, reach-n-freq, state-service, fmcom-player-api |
-| Evidence sources | `playlist-update-flow-html5core.md` (N0–N8), `blank-screen-scenarios.md` (S-1 through S-25), tech spikes for all four backend repos + html5core |
+| System | html5core + fmcom-player-api + RNF + State Service + fmcom-api (html5core fleet) |
+| Evidence sources | playback-flow doc, update-flow doc, 25 blank-screen scenarios, html5core tech spike |
 
 ## Problem Statement
 
-For each node of the html5core content update flow, determine:
+For each node of the html5core general playback lifecycle (boot → steady-state) and the content update flow (admin action → device reload), determine: what information is definitively lost on failure, and whether it can be recovered or approximated with instrumentation changes.
 
-1. Which signals are attempted but do not survive to an observable system (kill zones — Dimension 1).
-2. Which blank-screen paths have no instrumentation attempt at all (instrumentation gaps — Dimension 2).
-
-This is not a "what to log" exercise. The goal is to assess structural telemetry survivability — the ceiling on what percentage of blank-screen events is observable even under ideal infrastructure conditions.
+The investigation is area-exploration, not symptom-driven. The anchor is the two flow documents; every finding maps to a named node.
 
 ## Evidence Inventory
 
 | Source | Status | Notes |
 |---|---|---|
-| `playlist-update-flow-html5core.md` | Available | Full node-by-node flow map; primary structural anchor for all findings |
-| `blank-screen-scenarios.md` S-1 to S-25 | Available | 25 scenarios with "Missing" telemetry sections; each mapped to flow node |
-| `tech-spike-html5core-player.md` | Available | Source-level analysis; serverLogger.ts dead code confirmed, buffer overflow risk, all store behaviors |
-| `tech-spike-fmcom-player-api.md` | Available | Session architecture, UnsentNotice TTL, TelemetryController, WebSocket delivery, org-wide fanout |
-| `tech-spike-rnf.md` | Available | System.exit(-1) behavior, timeout handling, TriggerMode, pipeline stages, ES quota |
-| `tech-spike-state-service.md` | Available | In-process broker, OOM-kill risk, 5-min client eviction, ES quota coordination |
-| `tech-spike-fmcom-api.md` | Available | Post-commit JMS, tier suppression, throttle coalescing, TransactionSynchronizationManager |
-| Actual source code | Partial | Not directly read; evidence from tech spikes; claims graded as Confirmed (spike-cited) or Deduced |
+| `html5core-playlist-playback-flow.md` | Available | P-N0–P-N11, 3 conditional paths; code-level detail confirmed |
+| `html5core-playlist-update-flow.md` | Available | U-N0–U-N8; full cross-service chain |
+| `blank-screen-scenarios.md` | Available | 25 scenarios with "Missing" telemetry per scenario |
+| `tech-spike-html5core-player.md` | Available | localStorage flush, PlaybackState, watchdog, serverLogger dead code |
+| `tech-spike-fmcom-player-api.md` | Available (via update-flow) | UnsentNoticeService, WsSessionHolder, TelemetryController |
+| `tech-spike-rnf.md` | Available (via blank-screen-scenarios) | System.exit(-1), generation timeout, dedup |
+| `tech-spike-state-service.md` | Available (via blank-screen-scenarios) | Broker at-most-once, client eviction, OOM risk |
 
 ## Investigation Backlog
 
-| # | Path Explored | Priority | Status | Notes |
+| # | Path to Explore | Priority | Status | Notes |
 |---|---|---|---|---|
-| 1 | N0: Admin action — telemetry relevance | Low | Done | Out of scope for device telemetry; no signal path to html5core |
-| 2 | N1: fmcom-api — post-commit JMS gap | High | Done | KZ-3 confirmed |
-| 3 | N1: fmcom-api — tier suppression logging | High | Done | IG-5 confirmed |
-| 4 | N2: RNF transcoding — failure signal path | High | Done | KZ-8 + KZ-10 confirmed |
-| 5 | N3: RNF playlist gen — timeout signal | High | Done | KZ-7 + IG-9 confirmed |
-| 6 | N3: RNF playlist gen — ES write failure | Medium | Done | KZ-9 confirmed (phantom reload) |
-| 7 | N4: Message bus — broker OOM-kill | High | Done | KZ-4 confirmed |
-| 8 | N4: Message bus — client eviction | High | Done | KZ-5 confirmed |
-| 9 | N4: Message bus — Amazon MQ no DLQ | Medium | Done | KZ-6 (relabeled) confirmed |
-| 10 | N5: fmcom-player-api — cross-node miss + TTL | High | Done | KZ-6 (UnsentNotice) confirmed |
-| 11 | N6: html5core — serverLogger.ts dead code | Critical | Done | KZ-1 confirmed; highest-leverage fix |
-| 12 | N6: html5core — buffer overflow | High | Done | KZ-2 confirmed |
-| 13 | N6: html5core — consultation mode drop | High | Done | IG-1 confirmed; zero signal |
-| 14 | N6: html5core — concurrent reload guard | Medium | Done | IG-2 confirmed |
-| 15 | N6: html5core — setPlaylist([]) blank window | High | Done | IG-3 confirmed; affects every reload |
-| 16 | N6a–N6c: Playlist fetch failure signal | High | Done | IG-6 confirmed; observable only 20s later |
-| 17 | N6a: encodeURIComponent bug signal | Medium | Done | KZ combined with IG-6 |
-| 18 | N6d: _parsePlaylist unknown contentType | Medium | Done | IG-7 confirmed |
-| 19 | N6c: Combined playlist dynamic slot filter | Medium | Done | IG-8 confirmed |
-| 20 | N7: Playback — PlaybackState.None window | High | Done | Same path as IG-3 |
-| 21 | N8: Watchdog — telemetry survivability | Medium | Done | KZ-2 dependency confirmed |
+| 1 | Map all playback-flow nodes against telemetry dimensions | High | Done | See canonical analysis |
+| 2 | Map all update-flow nodes against telemetry dimensions | High | Done | See canonical analysis |
+| 3 | Map blank-screen scenarios "Missing" sections to flow nodes | High | Done | Coverage table in canonical analysis |
+| 4 | Identify paths with zero signal across entire stack | High | Done | 5 zero-signal paths documented |
+| 5 | Quantify distribution of fix responsibility (html5core vs backend) | High | Done | See responsibility table |
+| 6 | Verify serverLogger.ts dead-code status | Medium | Done | Confirmed: unconditional return on line 38 per spike |
+| 7 | Verify localStorage buffer has no size cap | Medium | Done | Confirmed in tech spike open question 6 |
 
----
+## Confirmed Findings
 
-## Confirmed Findings — Dimension 1: Kill Zones
+### Finding 1: serverLogger.ts is dead code — no client-side error reporting path exists
 
-Kill zones are paths where code attempts to emit a signal that does not survive to an observable layer.
+**Evidence:** `tech-spike-html5core-player.md` — "`sendIssue()` has an unconditional `return` on line 38, making the entire server-side logging feature dead code." Confirmed independently in blank-screen-scenarios.md S-3, S-20, S-21, S-22.
 
-### KZ-1: serverLogger.ts — all client-side error reporting is dead [N6]
+**Detail:** The only mechanism by which the html5core player could proactively report errors to the backend is completely disabled. Every client-side failure path is invisible to the server unless it eventually produces a telemetry event that survives the localStorage → WebSocket flush path.
 
-**Evidence:** `tech-spike-html5core-player.md`: "`sendIssue()` has an unconditional `return` on line 38, making the entire server-side logging feature dead code." Also S-3 assumptions and S-20 assumptions (both confirm `sendIssue()` is dead).
+### Finding 2: localStorage telemetry buffer has no size cap, no TTL, no HTTP fallback
 
-**Detail:** Every error path in html5core that relies on server-side issue reporting produces no observable signal. The designed diagnostic channel (serverLogger → server endpoint → logging) is a no-op. This is not a kill zone for a specific signal — it is a structural elimination of an entire signal class. All IG findings (Dimension 2) that would otherwise be reportable via this channel are also affected.
+**Evidence:** `tech-spike-html5core-player.md` open question 6: "The telemetry queue in localStorage has no size cap. What is the expected behavior if the WebSocket is offline for an extended period?" Confirmed in `html5core-playlist-playback-flow.md` N9: "If WebSocket is closed: buffer accumulates without bound — no size cap, no TTL."
 
-**Severity:** This is the single highest-leverage finding in the investigation. Restoring `sendIssue()` unlocks signal paths for IG-1, IG-6, IG-7, and IG-8 without requiring backend changes.
+**Detail:** Kill zone during extended WebSocket outages. Two failure modes: (a) OOM before flush destroys events, (b) localStorage quota overflow (~5–10MB in WebView) causes subsequent writes to fail silently. Both are completely invisible to the server.
 
----
+### Finding 3: setPlaylist([]) blank window is uninstrumented
 
-### KZ-2: Telemetry buffer overflow — events lost when WebSocket offline extended [N6, N8]
+**Evidence:** `html5core-playlist-playback-flow.md` N6: "`setPlaylist([])` is called immediately before the fetch begins. The screen goes blank at this point and stays blank until `setPlaylist(newPlaylist)` completes." `html5core-playlist-update-flow.md` N6a: same pattern confirmed for content-reload path.
 
-**Evidence:** `tech-spike-html5core-player.md`: "If the WebSocket drops permanently, telemetry accumulates without bound in localStorage (no cap or TTL on the buffer)." S-3 assumptions: "no local playlist cache... no local cache."
+**Detail:** The blank-screen moment itself — the exact instant when the screen goes dark — is never logged. No telemetry event is emitted for `setPlaylist([])`. The only downstream signal is the watchdog firing 20 seconds later if the fetch fails. This applies to every `reloadCurrentPlaylist()` call: triggered by `CONTENT_CHANGED`, watchdog 20s, or `CONFIG` message.
 
-**Detail:** PlaybackWatchdog events, connection state events, and playback events all queue in localStorage during WebSocket outages. The buffer has no size cap and no eviction policy. Browser storage limits or device OOM can silently drop buffered events before flush. This affects N8 (watchdog events) most critically — since the watchdog fires precisely when the WebSocket is most likely degraded (device under stress).
+### Finding 4: consultation-mode CONTENT_CHANGED drop produces no record
 
----
+**Evidence:** `html5core-playlist-update-flow.md` N6: "Guard: isConsults? → skip." Blank-screen-scenarios.md S-22: "No server-side or client-side record that a CONTENT_CHANGED was dropped due to consultation mode."
 
-### KZ-3: Post-commit JMS dispatch gap — content change lost on fmcom-api crash [N1]
+**Detail:** The guard check is correct behavior (don't interrupt consultations), but the absence of any log or telemetry event means there is no observable record that the update was missed. After the consultation ends, the device plays stale content with no signal to the operator.
 
-**Evidence:** `playlist-update-flow-html5core.md` N1: "JMS publish is deferred until DB transaction commits via `TransactionSynchronizationManager`. The message is not sent inline during the request; it is queued for post-commit dispatch."
+### Finding 5: State Service broker provides at-most-once delivery — structural kill zone
 
-**Deduced:** A crash or OOM-kill of fmcom-api between DB commit and the actual JMS send produces a committed content change in MySQL with no downstream notification. No metric tracks the gap between "commit occurred" and "JMS dispatched." No dead-letter or outbox mechanism compensates.
+**Evidence:** `blank-screen-scenarios.md` S-17: "In-process broker in State Service delivers at-most-once — confirmed in state-service spike observation 6: 'If state-service is OOM-killed or receives SIGKILL, all undelivered topic messages are lost.'" Also S-7: "client offset eviction after 5 minutes of inactivity causes silent message loss — confirmed in state-service spike observation 14."
 
----
+**Detail:** Two independent at-most-once kill zones in the message delivery path (U-N4). Neither can be repaired by adding instrumentation — both require architectural changes (durable broker, at-least-once delivery guarantee, dead-letter queues).
 
-### KZ-4: State Service broker OOM-kill — PLAYER_* messages in transit permanently lost [N4]
+### Finding 6: PlaybackWatchdog telemetry cannot distinguish healthy skip from stall loop
 
-**Evidence:** S-17, state-service spike observation 6: "If state-service is OOM-killed or receives SIGKILL, all undelivered topic messages are lost." "It does not run on a crash." The `ElasticBrokerMessages` snapshot runs only on clean `stop()`.
+**Evidence:** `blank-screen-scenarios.md` S-3: "No signal distinguishing a 'healthy watchdog skip' from a 'watchdog reload loop' — both appear as PlaybackWatchdog telemetry with the same type."
 
-**Detail:** The in-process broker in State Service holds PLAYER_ORGANIZATION_CONTENT_UPDATED and PLAYER_SCREEN_CONTENT_UPDATED in memory before delivering to fmcom-player-api subscribers. An OOM-kill — the primary crash mode given the unbounded screen cache (state-service spike observation 2) — discards all in-transit messages permanently.
+**Detail:** The watchdog fires the same telemetry event whether it's advancing a slow-loading item (expected behavior) or cycling indefinitely on a broken endpoint (S-3 loop). This means the telemetry that does survive is structurally ambiguous.
 
----
+### Finding 7: TelemetryController in fmcom-player-api swallows all exceptions
 
-### KZ-5: State Service broker client eviction — PLAYER_* messages missed silently [N4]
+**Evidence:** `html5core-playlist-update-flow.md` architecture note 7: "Telemetry is best-effort. player-api's TelemetryController swallows all exceptions; TelemetryEventAnalyzerService runs fire-and-forget. Loss is silent."
 
-**Evidence:** S-7, state-service spike observation 14: "client offset eviction after 5 minutes of inactivity causes silent message loss — confirmed."
-
-**Detail:** A fmcom-player-api instance that does not actively poll the State Service broker for 5 minutes has its consumer offset reset to the current tail. All PLAYER_* messages published during the inactivity window are permanently missed. No log entry and no metric document this reset.
-
----
-
-### KZ-6: CONTENT_CHANGED delivery — UnsentNotice TTL kills message for offline/cross-node devices [N5]
-
-**Evidence:** `playlist-update-flow-html5core.md` N5: "queues for reconnect delivery (in-memory only, **30-second TTL**, cleaned up every 10 seconds)." S-23 and S-24 both confirm the TTL expiry path.
-
-**Detail:** Two paths converge here: (a) device is offline when CONTENT_CHANGED is dispatched — stored in UnsentNotice, lost after 30s if device doesn't reconnect; (b) cross-node ECS deployment — CONTENT_CHANGED dispatched on node A for a device connected to node B — stored in UnsentNotice on node A, never delivered if device reconnects to node B. Both paths produce the same outcome: notification attempted, TTL kills it.
-
----
-
-### KZ-7: RNF playlist generation timeout — no PLAYER_*_UPDATED published [N3]
-
-**Evidence:** S-8 confirmed: "`waitForCompletion` returns null/empty set silently." "`detectLongRunningTask` logs the screen ID and elapsed time — not a metric or alert." No PLAYER_ORGANIZATION_CONTENT_UPDATED or PLAYER_SCREEN_CONTENT_UPDATED is published on timeout.
-
-**Detail:** A screen whose generation exceeds the 5-minute (per-screen) or 30-minute (per-org) deadline receives no notification. The only observable artifact is a single log line. No metric counts timeout frequency. No alert fires. The screen's ElasticPlaylistSchedule is not updated.
-
----
-
-### KZ-8: Transcoding failure — PLAYER_CONTENT_TRANSCODED not published [N2]
-
-**Evidence:** S-4 confirmed: "`PLAYER_CONTENT_TRANSCODED` is **not** published" on `UnifiedVideoPipeline` failure. "`API_CONTENT_ADD` is **not** published." "The content remains in its previous `TranscodingStatus` state in MySQL."
-
-**Nuance:** Technically Dimension 2 from the signal's perspective (the signal is never attempted on the failure path), but it presents as a kill zone to downstream nodes (N4, N5, N6) because the absence of the event is what causes the blank screen.
-
----
-
-### KZ-9: ES write failure after generation — phantom reload [N3]
-
-**Evidence:** S-15 confirmed: generation completes → ES write fails → `MySqlElasticsearchSaveFailure` row created. PLAYER_*_UPDATED publication is not gated on ES write success (not documented in any spike as suppressed).
-
-**Deduced:** PLAYER_ORGANIZATION_CONTENT_UPDATED is published (notification survives to N5/N6), but ElasticPlaylistSchedule was not updated. The device receives CONTENT_CHANGED, clears its playlist (setPlaylist([])), fetches from player-api, which fetches from RNF's stale ElasticPlaylistSchedule, and receives the same content as before. Screen blanks and recovers with identical content — a phantom reload that produces unnecessary blank time with no benefit.
-
----
-
-### KZ-10: RNF System.exit(-1) — in-flight transcoding context destroyed, no differentiating signal [N2]
-
-**Evidence:** S-1, S-6, RNF spike: "System.exit(-1) is called immediately — no backoff, no retry." In-flight transcodes are abandoned. Shutdown hook marks claimed rows as FAILED. CloudWatch receives an ERROR log line and ECS task exit event.
-
-**Detail:** The only signal is a log line + ECS task exit — identical to any other JVM crash. No metric distinguishes "exited due to State Service ping failure" from "exited due to OOM" or "exited due to another exception." In-flight content IDs at time of exit are not recorded anywhere.
-
----
-
-## Confirmed Findings — Dimension 2: Instrumentation Gaps
-
-Instrumentation gaps are paths where a device reaches a blank screen with no code attempting to emit any signal at any layer.
-
-### IG-1: CONTENT_CHANGED received in consultation mode — zero signal anywhere in the stack [N6]
-
-**Evidence:** S-22 confirmed: "`reloadCurrentPlaylist()` returns immediately when `isConsults === true`." "No server-side or client-side record that a `CONTENT_CHANGED` was dropped due to consultation mode."
-
-**Detail:** The WebSocket delivers the message. The handler calls `reloadCurrentPlaylist()`. The first guard returns early. Nothing is logged. Nothing is telemetrized. fmcom-player-api does not know the message was dropped. After the consultation ends, the device plays stale content indefinitely. This is the most complete zero-signal path in the investigation: no actor at any layer has any observable record of the event.
-
----
-
-### IG-2: Concurrent reload guard — second CONTENT_CHANGED silently dropped [N6]
-
-**Evidence:** `playlist-update-flow-html5core.md` N6: "If a second `CONTENT_CHANGED` arrives while `__currentPlaylistLoading === true`: `reloadCurrentPlaylist()` returns immediately without action. The second reload is silently dropped."
-
-**Detail:** With org-wide fanout (S-19), multiple CONTENT_CHANGED signals can arrive at a device in rapid succession. Only the first is processed. If the first reload fails (fetch returns {}), the device has no knowledge that additional signals were queued and dropped.
-
----
-
-### IG-3: setPlaylist([]) → PlaybackState.None — blank window of every reload is unobservable [N6, N7]
-
-**Evidence:** `playlist-update-flow-html5core.md` N6a: "`playbackController.setPlaylist([])` ← old playlist cleared immediately; screen goes blank." Confirmed that this happens before the HTTP fetch begins.
-
-**Detail:** PlaybackState.None is the player's initial/reset state. No telemetry event marks the transition from "playing" to PlaybackState.None (setPlaylist([]) call). The blank period — from setPlaylist([]) to setPlaylist(newPlaylist) — appears as the absence of playback events, not as a positive "screen is blank" event. This gap affects **every** successful reload, not just failure paths. The blank window during normal operations is structurally unobservable.
-
----
-
-### IG-4: CONTENT_CHANGED received — no client-side receipt event [N6]
-
-**Evidence:** `playlist-update-flow-html5core.md` N6: WebSocket handler dispatches immediately to `reloadCurrentPlaylist()` with no telemetry call adjacent.
-
-**Detail:** The device receives a CONTENT_CHANGED and processes it. No event indicates "I received a CONTENT_CHANGED at timestamp T." The only observable consequence is either the downstream watchdog events (if reload fails) or the absence of events (if reload succeeds quickly). Server cannot correlate "CONTENT_CHANGED was delivered" with "device reloaded its playlist."
-
----
-
-### IG-5: FREE/LOCKED tier — JMS suppressed with no log of suppression [N1]
-
-**Evidence:** S-25 confirmed: "FREE / LOCKED: no notification sent — RNF is never triggered for these screens." No log entry marks the suppression.
-
-**Detail:** The notification path is silently skipped for FREE/LOCKED screens. An operator inspecting CloudWatch cannot determine whether a device received no content update because of a pipeline failure or because tier throttling intentionally suppressed the notification. The two conditions are indistinguishable from external observation.
-
----
-
-### IG-6: Playlist fetch failure — observable only 20 seconds later via watchdog [N6a, N6b, N6c]
-
-**Evidence:** `playlist-update-flow-html5core.md` N6: "`apiRequest()` returns `{}` on any network or server error." S-20: "No error is surfaced to the user; screen remains blank until watchdog fires at 20s." KZ-1 confirmed: serverLogger.ts dead, so client cannot report to server.
-
-**Detail:** When the playlist fetch fails, the screen is already blank (setPlaylist([]) was called first). apiRequest() returns {} silently. No telemetry event fires at point of failure. The first observable signal is the PlaybackWatchdog firing 20 seconds later — a symptom, not a cause. This delay makes it impossible to distinguish "device in a normal but slow reload" from "device at the start of a reload loop."
-
----
-
-### IG-7: Unknown contentType in _parsePlaylist — console.warn never reaches server [N6d]
-
-**Evidence:** `playlist-update-flow-html5core.md` N6d: "Unknown: Warning logged; item skipped silently." `tech-spike-html5core-player.md`: serverLogger.ts is dead code.
-
-**Detail:** An unrecognized contentType (e.g., a new type added backend-side before the player is updated) produces a `console.warn` that is never transmitted to any server. If all items in the response have an unknown type, `setPlaylist([])` is the effective result. The screen goes blank with zero observable signal anywhere. This path can activate silently after a backend content-type rollout without a coordinated player update.
-
----
-
-### IG-8: Dynamic slot filtering in Combined playlist — silent content reduction [N6c]
-
-**Evidence:** `playlist-update-flow-html5core.md` N6c: "Filters out unfilled dynamic slots: `playlist = playlist.filter(c => c?.content?.contentType)`."
-
-**Detail:** If a brand dynamic slot fetch fails (network error, brand has no eligible content), the slot is silently removed from the playlist. The device plays a reduced content set with no telemetry indicating items were filtered. If all slots are dynamic and all fail, the effective playlist is empty — blank screen — with zero signal.
-
----
-
-### IG-9: Generation timeout — no per-screen tracking of which screens were skipped [N3]
-
-**(Extends KZ-7 from the operator observability perspective.)**
-
-**Detail:** When generation times out, a single log line records elapsed time. No per-screen record of "this screen has not had its ElasticPlaylistSchedule updated since timestamp T." An operator cannot identify which specific screens missed a generation cycle without manually querying Elasticsearch timestamps. No alert triggers on schedule staleness.
-
----
+**Detail:** Even when device-side telemetry events reach player-api via WebSocket, downstream processing (escalation rules, content manifest detection, watchdog analysis) runs fire-and-forget with no error surfacing. Failures in telemetry analysis are invisible.
 
 ## Deduced Conclusions
 
-### DC-1: The PlaybackWatchdog is a recovery mechanism, not a diagnostic tool
+### Deduction 1: The blank-screen moment itself is unobservable in all 25 scenarios
 
-The watchdog fires at 10s/20s/30s thresholds — always after the screen is already blank. It cannot distinguish:
-- Blank because playlist fetch failed (apiRequest returned {})
-- Blank because CONTENT_CHANGED was dropped in consultation mode
-- Blank because all content items have unknown contentType
-- Blank because concurrent reload guard dropped the signal
-- Blank because setPlaylist([]) was called (every reload, including successful ones)
+**Based on:** Findings 3, 4; analysis of all 25 blank-screen scenarios' "Missing" sections.
 
-All of these produce an identical watchdog telemetry event. The watchdog is the only persistent device-side signal the server reliably receives about blank screens, yet it conflates every blank-screen cause into a single undifferentiated event type.
+**Reasoning:** `setPlaylist([])` always precedes the network fetch. No telemetry event is emitted at this call site. Server-side signals (HTTP requests, WebSocket messages) don't capture the device's visual state. Therefore the exact moment a screen goes blank is never recorded in any log, metric, or telemetry event across the entire system.
 
-### DC-2: serverLogger.ts dead code is the structural ceiling on client-side instrumentation
+**Conclusion:** Baseline telemetry coverage for the blank-screen event itself is 0/25. This is the most fundamental gap in the current instrumentation model.
 
-`sendIssue()` was designed as the error-reporting channel from html5core to the server. Its unconditional `return` on line 38 means that IG-1, IG-2, IG-3, IG-4, IG-6, IG-7, and IG-8 cannot be instrumented from within the player without either fixing this function or adding WebSocket telemetry events as an alternative. Every gap in Dimension 2 that occurs inside the player (N6, N6a–N6d) currently has no path to the server.
+### Deduction 2: The majority of high-impact zero-signal paths are due to instrumentation gaps, not kill zones
 
-### DC-3: State Service is a single point of failure for the telemetry routing chain itself
+**Based on:** Finding 3, 4, full node analysis; S-22, S-24, P-CC.
 
-State Service controls: (a) the in-process broker for PLAYER_* routing (KZ-4), (b) Elasticsearch quota for all services (KZ-7 dependency, S-10), (c) the screen state authority. A State Service OOM-kill cascades into broker message loss (KZ-4), RNF System.exit(-1) (KZ-10), and ES quota fallback suppressing generation throughput (reducing generation success rates, amplifying KZ-7). The failure simultaneously destroys multiple telemetry signals that would have documented the failure itself.
+**Reasoning:** The cases where signals are most completely absent (consultation mode drop, UnsentNotice TTL expiry after reconnect, initial fetch failure before watchdog fires) are not cases where code tried to log and failed — they are cases where the code path was not modeled as a failure at all. Kill zones (OOM, WS-closed-during-flush) are real but affect a minority of signals. The dominant cause of missing telemetry is architectural: these paths were not instrumented.
 
-### DC-4: Org-wide fanout multiplies every kill zone's blast radius
+**Conclusion:** A larger share of the 80% coverage gap is addressable through instrumentation additions (no architecture change required) than through structural fixes. This is relevant for the feasibility assessment.
 
-S-19 + KZ-6 + IG-3: every admin action on a single screen sends CONTENT_CHANGED to all devices in the org. Every kill zone that drops a CONTENT_CHANGED (KZ-4, KZ-5, KZ-6) potentially affects all org devices simultaneously, not just one. Every instrumentation gap that makes a blank window unobservable (IG-3) is simultaneously active across the entire fleet for every update.
+### Deduction 3: html5core is responsible for more instrumentation gaps; backend is responsible for more kill zones
 
----
+**Based on:** Full node analysis; Findings 1–7.
+
+**Reasoning:** The player is responsible for 8 of 12 instrumentation gaps (client-side failure paths that were never modeled). The backend is responsible for 7 of 11 kill zones (at-most-once broker, UnsentNotice TTL, cross-node delivery, JMS deferred publish, no DLQs). This asymmetry matters for workload distribution: html5core changes require a player deployment to all devices; backend changes can be deployed independently.
 
 ## Hypothesized Paths
 
-### H-1: JmsMode routing for PLAYER_* is Amazon MQ in production (not in-process broker)
+### Hypothesis 1: localStorage survives `window.location.reload()` — watchdog events are not lost on reload
 
-**Status:** Open
+**Status:** Confirmed (deduced from browser behavior and tech spike)
 
-**Theory:** If `JmsMode.MQ` is the active routing for PLAYER_CONTENT_TRANSCODED and PLAYER_ORGANIZATION_CONTENT_UPDATED in production, then KZ-4 (OOM-kill of State Service broker) does not apply to those messages — they go through Amazon MQ instead. KZ-5 (client eviction) also would not apply.
+**Theory:** localStorage persists across page reloads in WebView environments. The watchdog 30s event written to localStorage just before `window.location.reload()` survives the reload. It is flushed when the WebSocket reconnects after the new page load.
 
-**Would confirm:** Read production environment config for `JmsMode` setting in `fm-common` MessagingService configuration.
+**Resolution:** Confirmed by browser localStorage spec and consistent with tech spike description of the buffering model.
 
-**Would refute:** Production config shows `JmsMode.STATE` for PLAYER_* destinations.
+### Hypothesis 2: PlaybackState.None is not emitted as a failure telemetry event when setPlaylist([]) is called
 
-**Resolution:** Open — not determinable from spikes alone.
+**Status:** Confirmed (deduced)
 
----
+**Theory:** `setPlaylist([])` transitions playback to None/empty state. The telemetry subsystem emits `Playback` events for content transitions. PlaybackState.None is the normal end-of-item state and would not be distinguishable from "playlist was cleared for reload."
 
-### H-2: TelemetryController exception handling silently drops device telemetry server-side
+**Resolution:** Confirmed by flow doc: the PlaybackState.None state is used both for normal item-end transitions and for the blank-before-fetch moment. No dedicated event type exists for the latter. This is Finding 3.
 
-**Status:** Open
+### Hypothesis 3: RNF generation timeout at U-N3 is a kill zone, not an instrumentation gap
 
-**Theory:** `playlist-update-flow-html5core.md` Key Constraint 7: "player-api's `TelemetryController` swallows all exceptions; `TelemetryEventAnalyzerService` runs fire-and-forget. Loss is silent." If this extends to write failures, device telemetry events may be lost after successful WebSocket delivery — creating a kill zone on the server side for events that survived the network.
+**Status:** Refuted — reclassified as instrumentation gap
 
-**Would confirm:** Read `fmcom-player-api` TelemetryController source; find exception handling scope.
+**Theory:** Initially suspected that RNF generation timeout might involve a code path that tries to publish a PLAYER_* message and fails.
 
-**Would refute:** TelemetryController propagates failures and has a fallback (dead-letter or retry queue).
-
-**Resolution:** Open — not read directly; spike inference only.
-
----
+**Resolution:** Refuted by flow doc and S-8. `waitForCompletion` returns null silently — the code never attempts to publish a message on timeout. No message is intended to be sent; the timeout path simply exits without publishing. This is an instrumentation gap (no metric, no alert, no retry), not a kill zone.
 
 ## Missing Evidence
 
 | Gap | Impact | How to Obtain |
 |---|---|---|
-| `sendIssue()` state in current main branch | If recently re-enabled, IG-1 through IG-8 may have partial coverage | Read `src/store/serverLogger.ts` line 38 in current branch |
-| `JmsMode` routing for PLAYER_* in production | Determines whether KZ-4/KZ-5 (in-process broker) or Amazon MQ outage is primary kill zone | Read production env config / fm-common MessagingService |
-| `TelemetryController` exception scope in fmcom-player-api | Determines whether H-2 is a confirmed kill zone | Read TelemetryController.java |
-| ALB sticky session config for fmcom-player-api | Determines severity of S-23 (cross-node miss) | AWS ALB target group config in infrastructure-as-code |
-| `usePlan` store activation status in html5core | Determines if plan reporting is live or also dead code | Search `usePlan()` calls in component tree |
-
----
+| Whether ALB sticky sessions are configured for fmcom-player-api target group | Determines whether S-23 cross-node delivery is a current production issue or a theoretical risk | Check AWS ALB target group configuration in production |
+| Whether `JmsMode.STATE` or `JmsMode.MQ` is active for `PLAYER_*` messages in production | Determines which kill zone (in-process broker vs Amazon MQ) applies to U-N4 | Check `fm-common` MessagingService configuration in production env vars |
+| localStorage quota observed on production FireTV devices | Determines real OOM-before-flush risk vs theoretical | Instrument with localStorage size monitoring on a test device |
+| Feign connect/read timeout for ScreenStateClient in fmcom-player-api | Determines how long devices wait on re-registration after reload (S-12 duration) | Check fmcom-player-api application.yml / env config |
 
 ## Source Code Trace
 
 | Element | Detail |
 |---|---|
-| KZ-1 origin | `src/store/serverLogger.ts:38` — unconditional `return` |
-| KZ-2 origin | `src/store/telemetry/` — localStorage buffer, no size cap |
-| KZ-6 origin | `fmcom-player-api/UnsentNoticeService` — 30s TTL, in-memory |
-| IG-1 origin | `src/store/playlists.ts` — `reloadCurrentPlaylist()` guard: `if (playbackController.isConsults) return` |
-| IG-3 origin | `src/store/playlists.ts` — `setPlaylist([])` called before fetch begins |
-| IG-6 origin | `src/utils/api.ts` — `apiRequest()` returns `{}` on any error |
-
----
+| Kill zone — telemetry buffer | `src/store/telemetry/telemetryQueue` → localStorage → WebSocket send; no cap, no TTL, no HTTP fallback |
+| Kill zone — WS flush transport | `telemetryQueue` flush sends via WebSocket only; closed WS → events in batch are lost |
+| Gap — setPlaylist blank | `src/store/playlists.ts` → `reloadCurrentPlaylist()` → `playbackController.setPlaylist([])` — no telemetry event emitted here |
+| Gap — serverLogger dead code | `src/store/serverLogger.ts` line 38 — unconditional `return` makes `sendIssue()` a no-op |
+| Gap — consultation guard | `src/store/playlists.ts` → `reloadCurrentPlaylist()` guard: `if (playbackController.isConsults) return` — no log |
+| Gap — concurrent reload guard | `src/store/playlists.ts` → `reloadCurrentPlaylist()` guard: `if (__currentPlaylistLoading) return` — no log |
+| Kill zone — State Service broker | `BrokerServiceImpl` (state-service) — in-memory, at-most-once; OOM-kill loses all queued PLAYER_* messages |
+| Kill zone — UnsentNotice TTL | `UnsentNoticeService` (fmcom-player-api) — 30s TTL, cleanup every 10s, no expiry metric |
+| Gap — watchdog telemetry | `src/store/playbackWatchdog.ts` — emits `PlaybackWatchdog` telemetry at 10s/20s/30s thresholds; no context field to distinguish healthy-skip from stall-loop |
+| Gap — activation retry | `src/store/checkActivation.ts` — no telemetry for retry cycles; only success is recorded |
 
 ## Conclusion
 
-**Confidence: High**
+**Confidence:** High — all findings are Confirmed from direct source citations or Deduced from confirmed facts.
 
-**Dimension 1 — Kill zones (10 confirmed):** Signals are attempted but die before reaching any observability system. Ranked by severity:
-1. **KZ-1 (serverLogger.ts dead):** eliminates all designed client-side error reporting.
-2. **KZ-4 (State Service OOM-kill):** silently drops PLAYER_* messages in the broker.
-3. **KZ-6 (UnsentNotice TTL):** loses CONTENT_CHANGED for any device offline >30s.
-4. **KZ-2 (buffer overflow):** drops watchdog and playback telemetry during WebSocket outages.
-5. **KZ-7 (generation timeout silent):** screen gets no update notification with only a log line.
+Of the 11 kill zones identified, 7 are repairable through instrumentation changes (localStorage buffer cap, HTTP fallback transport, WS-closed retry, WS establishment failure event, UnsentNotice expiry metric, TelemetryController error surfacing) and 4 require architectural changes (State Service broker at-most-once → at-least-once, cross-node WebSocket delivery → sticky sessions or distributed store, fmcom-api JMS deferred publish → transactional outbox, Amazon MQ → add DLQs).
 
-**Dimension 2 — Instrumentation gaps (9 confirmed):** Blank-screen paths with zero signal at any layer. Ranked by severity:
-1. **IG-1 (consultation mode drop):** zero signal anywhere; indefinitely stale playlist after consult.
-2. **IG-3 (setPlaylist([]) window):** every reload has an unobservable blank window; affects the entire fleet on every admin update.
-3. **IG-6 (fetch failure observable 20s late):** failure indistinguishable from slow reload for 20 seconds.
-4. **IG-4 (no CONTENT_CHANGED receipt event):** no correlation between delivery and reload.
-5. **IG-7 (unknown contentType):** new content type rollout silently blanks devices running old player.
+Of the 12 instrumentation gaps, all 12 are repairable without architectural changes: 8 require html5core changes (add telemetry at setPlaylist[], fetch failure, consultation drop, concurrent drop, activation retry, PlaybackState.None as failure event, watchdog context field, re-enable serverLogger), and 4 require backend changes (generation timeout metric, per-screen freshness alert, FAILED transcode alert, CONTENT_CHANGED delivery metric).
 
-**Structural constraint:** The ceiling on observable telemetry for html5core blank screens cannot be raised to 80% without changes to the player itself. Server-side fixes can address 9 of 14 kill zones. The remaining 5 kill zones plus all 9 instrumentation gaps require player-side instrumentation changes, and the first step is restoring `sendIssue()` in serverLogger.ts.
-
----
+The full findings, node-by-node table, scenario coverage table, and responsibility distribution are in `html5core-telemetry-analysis.md`.
 
 ## Recommended Next Steps
 
 ### Fix direction
 
-**Highest single-leverage action:** Restore `sendIssue()` in `src/store/serverLogger.ts` — remove the early `return` on line 38. This unblocks client-side error reporting for IG-1, IG-6, IG-7, and IG-8 and converts them from zero-signal paths to instrumented paths without requiring new backend endpoints.
+Two distinct workstreams:
+1. **Instrumentation additions** (html5core + backend, no architecture change): 12 gaps and 7 kill zones where adding logging/telemetry/metrics is sufficient. Highest-value items: re-enable serverLogger, add telemetry at setPlaylist[], add localStorage buffer cap + HTTP fallback.
+2. **Architectural fixes** (backend): 4 structural kill zones. Required for complete coverage of S-7, S-17, S-23, S-24. Estimated significantly higher effort than workstream 1.
 
-**Server-side kill zone remediation:**
-- Dead-letter queues on all PLAYER_* JMS destinations (KZ-4, KZ-5, KZ-6 complement).
-- Persist UnsentNotice to Redis with configurable TTL > 30s (KZ-6).
-- Gate PLAYER_*_UPDATED publication on confirmed ES write success (KZ-9).
-- Custom CloudWatch metric on `detectLongRunningTask` log pattern (KZ-7).
+### Diagnostic
 
-**Player-side instrumentation additions:**
-- Telemetry event: `content_changed_received` with timestamp.
-- Telemetry event: `content_changed_dropped_consults`.
-- Telemetry events: `playlist_cleared` / `playlist_loaded` with timestamps (makes IG-3 observable).
-- Telemetry event: `playlist_fetch_failed` with HTTP status code.
-- localStorage buffer size cap + FIFO eviction (KZ-2 fix).
-
-### Diagnostic (immediate, no code changes)
-
-- Query ElasticPlaylistSchedule timestamps across the fleet; screens with `last_updated` older than 26h indicate generation gaps (proxy for KZ-7 frequency).
-- Analyze CloudWatch for `detectLongRunningTask` log frequency per org.
-- Check production environment config for `JmsMode` routing of PLAYER_* messages (resolves H-1).
-- Check `src/store/serverLogger.ts` line 38 in current main branch (may have been fixed).
-
----
-
-## Side Findings
-
-- **`usePlan` store may be dormant.** `tech-spike-html5core-player.md`: "it is unclear from the store list whether it is actually activated anywhere." If dormant, plan reporting (`player/plan`) is dead code and the server-side plan data is stale or absent — not a blank-screen issue but a content scheduling accuracy issue.
-- **autoUpdate compounds watchdog reload loops.** If a new build hash is detected during a watchdog-triggered reload cycle (S-3), `autoUpdate` triggers an additional `window.location.reload()` — potentially extending the blank-screen window beyond the 30s watchdog threshold.
-- **Org-wide fanout (S-19) is both a design choice and a telemetry multiplier.** Every unnecessary CONTENT_CHANGED to unaffected devices creates unnecessary blank windows (IG-3) and unnecessary watchdog events, diluting the diagnostic value of watchdog telemetry by adding noise.
-- **SHA-1 request signing weakness.** `tech-spike-html5core-player.md`: request signing uses `SHA-1(serialNum + timestamp)`. SHA-1 is considered cryptographically weak. Not a blank-screen risk, but a security observation for future review.
+Run `skill-roundtable` with Winston (architect) + Amelia (dev) + John (PM) against `html5core-telemetry-analysis.md` to assess feasibility of 80% coverage in 1 month and required team profile.
