@@ -7,6 +7,7 @@ relates_to:
   - layers/layer-3-architecture/intermediate/telemetry-analysis-process.md
   - layers/layer-3-architecture/intermediate/html5core-telemetry-analysis.md
   - layers/layer-3-architecture/intermediate/html5core-telemetry-feasibility-assessment.md
+  - layers/layer-3-architecture/intermediate/blank-screen-effort-impact.md
   - layers/layer-1-product/intermediate/audit/html5core-telemetry-80pct-evaluation.md
   - layers/layer-1-product/intermediate/audit/audit_approach.md
 ---
@@ -71,9 +72,24 @@ This section will document:
 
 ---
 
-## 4. Telemetry Changes — Delivery Timeline
+## 4. Blank Screen Scenarios — Prioritization
 
-> **Status: TBD — depends on Sections 1, 2, and 3.**
+> **Status: TBD — analysis pending.**
+
+This section will document:
+
+- **Scenario inventory:** The full set of blank-screen scenarios identified across the active fleet, with a brief description of each.
+- **Prioritization matrix:** Each scenario scored by impact and effort, producing a ranked action list.
+- **Tier rationale:** Why scenarios were grouped as they were — what makes a scenario Tier 1 vs. deferred, and what assumptions drive those calls.
+- **First action:** The single highest-leverage fix, with enough detail to hand off to engineering.
+- **Sequencing dependencies:** Where fixing one scenario changes the severity or priority of another.
+- **Timeline candidates:** Which Tier 1 fixes (high impact, low effort) are viable to fold into the delivery window documented in Section 5.
+
+---
+
+## 5. Telemetry Changes — Delivery Timeline
+
+> **Status: TBD — depends on Sections 1, 2, 3, and 4.**
 
 This section is distinct from Section 1 (implementation timeline). Implementation timeline = how long it takes to build and validate the code. Delivery timeline = how long it takes for those changes to be observable in production on devices — which is gated by the release process and QA capacity.
 
@@ -81,10 +97,10 @@ This section will document, per player:
 
 - **Player change delivery:** Release cadence, regression cycle duration, and fleet rollout milestones.
 - **Backend change delivery:** Independent deployment path and sequencing constraints.
-- **Combined delivery view:** End-of-month milestones across both player and backend changes, with scenario coverage projections.
+- **Combined delivery view:** End-of-month milestones across both player and backend changes, with scenario coverage projections and any Tier 1 scenario fixes included in the window.
 
 ---
 
-## 5. Open Questions
+## 6. Open Questions
 
 > To be populated as analysis progresses.
